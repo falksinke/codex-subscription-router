@@ -78,13 +78,18 @@ async function codexMuxConsumeRateLimitReset(accountId, input) {
 function CodexMuxUsageModal({
   onClose,
 }) {
-  return (0, e7.jsx)(QLs, {
-    defaultResetCreditsOpen: true,
-    initialAvailableCount: 0,
-    isRateLimitReached: false,
-    onClose,
-    onResetComplete: () => {},
-  });
+  const resetStateKey = CodexMuxUseResetAccountState();
+  return (0, e7.jsx)(
+    QLs,
+    {
+      defaultResetCreditsOpen: true,
+      initialAvailableCount: 0,
+      isRateLimitReached: false,
+      onClose,
+      onResetComplete: () => {},
+    },
+    resetStateKey,
+  );
 }
 
 function CodexMuxUseResetAccountState() {
@@ -137,10 +142,11 @@ function CodexMuxUseResetAccountState() {
   const selected =
     accounts.find((account) => account.id === selectedId) || accounts[0] || null;
   const activeId = selected?.id || selectedId;
-  window.__codexMuxResetAccountId = activeId;
-  window.__codexMuxSelectedUsageWindows = selected
+  const selectedUsageWindows = selected
     ? codexMuxUsageWindows(selected.rateLimits)
     : null;
+  window.__codexMuxResetAccountId = activeId;
+  window.__codexMuxSelectedUsageWindows = selectedUsageWindows;
   window.__codexMuxResetAccountSelector = (0, e7.jsx)(
     CodexMuxResetAccountSelector,
     {
@@ -152,6 +158,18 @@ function CodexMuxUseResetAccountState() {
     },
   );
 
+  return JSON.stringify([
+    activeId,
+    loading,
+    accounts.map((account) => [
+      account.id,
+      account.label,
+      account.planLabel,
+      account.profileImageUrl,
+      resetCounts[account.id] ?? null,
+    ]),
+    selectedUsageWindows,
+  ]);
 }
 
 function CodexMuxResetAccountSelector({

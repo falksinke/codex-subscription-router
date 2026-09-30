@@ -1043,12 +1043,6 @@ def patch_renderer(extracted: Path) -> None:
         "globalThis.__codexMuxSelectedProfileAccountId??null)",
         "native profile stats request",
     )
-    bundle = replace_anchor(
-        bundle,
-        "function QAi(e){",
-        "function QAi(e){CodexMuxUseResetAccountState();",
-        "native Usage modal component",
-    )
     reset_query_anchor = (
         "function ber(){let e=(0,xI.c)(1);Th(),W(null);let t;return "
         "e[0]===Symbol.for(`react.memo_cache_sentinel`)?"
@@ -1139,8 +1133,9 @@ def patch_renderer(extracted: Path) -> None:
     modal = modal_path.read_text(encoding="utf-8")
     modal = replace_anchor(
         modal,
-        "let v=_,y=l??null,b;",
-        "let v=_,y=globalThis.__codexMuxSelectedUsageWindows??l??null,b;",
+        "t[5]===y?b=t[6]:(b=ye(y),t[5]=y,t[6]=b);let x=b;",
+        "t[5]===y?b=t[6]:(b=ye(y),t[5]=y,t[6]=b);"
+        "let x=globalThis.__codexMuxSelectedUsageWindows??b;",
         "native usage-window selection",
     )
     modal = replace_anchor(
