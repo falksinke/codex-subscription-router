@@ -9,13 +9,13 @@ binary reference counts. A mismatch stops the patch before installation.
 
 | Component | Required value |
 | --- | --- |
-| Official ChatGPT version | `26.928.20755` |
-| Official bundle build | `12246` |
-| `app.asar` SHA-256 | `2301fba40bd8fa237ccdb1369363e1deefaf27953da2d767d428225d5e9eedee` |
+| Official ChatGPT version | `26.928.21956` |
+| Official bundle build | `12404` |
+| `app.asar` SHA-256 | `3bda98f2265ad23677dfe0163d1cc7855beade6bef11d27f830f6663d7658406` |
 | Bundle identifier | `com.openai.codex` |
 | Apple signing team | `2DC432GLL2` |
 | Architecture | Apple silicon (`arm64`) |
-| Bundled Codex CLI | `0.159.0` |
+| Bundled Codex CLI | `0.159.2` |
 
 There is no untested-source override. Supporting a later ChatGPT build requires
 a deliberate port with new exact filenames, semantic anchors, native counts,
@@ -61,8 +61,8 @@ patcher changes only the 32-byte digest and does not disable an integrity fuse.
 A valid, locally available Apple Development or Developer ID Application
 identity is required. Apple Development includes certificates managed by
 Xcode's free Personal Team, so a paid Apple Developer Program membership is not
-inherently required. A free Personal Team certificate has successfully signed,
-installed, and launched this exact build through native main and renderer
+inherently required. A free Personal Team certificate successfully signed,
+installed, and launched the prior build `12246` through native main and renderer
 startup after the per-target entitlement, hardened-runtime, Apple-chain, team,
 and deep-strict checks passed. After the socket-routing correction, the app
 opened its normal window and its profile menu displayed the connected Primary
@@ -84,4 +84,6 @@ copy OpenAI provisioning profiles.
 The bounded installation check established normal startup and a connected
 Primary subscription on build `12246`. It did not exercise additional-account
 login, switching, failover, Computer Use permissions, or general application
-behavior. Unit and end-to-end suites, typechecks and linters were not run.
+behavior. Build `12404` has been ported by exact source inspection but has not
+yet been patched, signed, installed, launched, or exercised at runtime. Unit and
+end-to-end suites, typechecks and linters were not run.

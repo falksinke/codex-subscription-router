@@ -60,26 +60,26 @@ OPENAI_INTERNAL_TEAM_IDENTIFIER = "HX7739G8FX"
 OPENAI_DISTRIBUTION_TEAM_IDENTIFIER = "2DC432GLL2"
 TESTED_SOURCE_BUILDS = {
     (
-        "26.928.20755",
-        "12246",
-    ): "2301fba40bd8fa237ccdb1369363e1deefaf27953da2d767d428225d5e9eedee",
+        "26.928.21956",
+        "12404",
+    ): "3bda98f2265ad23677dfe0163d1cc7855beade6bef11d27f830f6663d7658406",
 }
 EXPECTED_CUA_IDENTIFIER_REPLACEMENTS = 49
 EXPECTED_ASAR_CUA_IDENTIFIER_REPLACEMENTS = 16
 
 BUILD_FILES = {
     "app_server": ".vite/build/application-network-startup-D74LEWDz.js",
-    "bootstrap": ".vite/build/bootstrap-ClH9X4Aa.js",
-    "main": ".vite/build/main-DPn4U9E8.js",
+    "bootstrap": ".vite/build/bootstrap-B7ariqxX.js",
+    "main": ".vite/build/main-BbeJ4AAR.js",
     "preload": ".vite/build/preload.js",
 }
 WEBVIEW_FILES = {
-    "initial": "webview/assets/app-initial-74096abaa6b3.js",
-    "modal": "webview/assets/modal-impl-3fdc9348f6cd.js",
-    "plugin_settings": "webview/assets/plugins-settings-27d6d671d473.js",
-    "profile": "webview/assets/profile-a0fd4983a3e4.js",
-    "profile_dropdown": "webview/assets/profile-dropdown-items-97a5f760284a.js",
-    "thread": "webview/assets/local-conversation-thread-b33b65c9da1e.js",
+    "initial": "webview/assets/app-initial-135a4ef2552c.js",
+    "modal": "webview/assets/modal-impl-f7bf9823112c.js",
+    "plugin_settings": "webview/assets/plugins-settings-19529e3bd1ae.js",
+    "profile": "webview/assets/profile-d988344ef180.js",
+    "profile_dropdown": "webview/assets/profile-dropdown-items-e592b94308bb.js",
+    "thread": "webview/assets/local-conversation-thread-d3f97538bfd2.js",
 }
 
 
@@ -831,7 +831,7 @@ def replace_anchor(
 
 
 def patch_account_component(component: str) -> str:
-    component = replace_anchor(component, "Lo(Q)", "Pe(Z)", "modal scope")
+    component = replace_anchor(component, "Lo(Q)", "Fe(Z)", "modal scope")
     component = replace_anchor(
         component,
         "CH.Separator",
@@ -840,15 +840,15 @@ def patch_account_component(component: str) -> str:
         expected=2,
     )
     for original, replacement, expected in (
-        ("e7", "m1", 55),
-        ("kXc", "Sro", 26),
-        ("QLs", "hDi", 1),
-        ("BW", "yf", 1),
-        ("lt", "Qa", 1),
+        ("e7", "o$", 55),
+        ("kXc", "$oo", 26),
+        ("QLs", "QAi", 1),
+        ("BW", "ff", 1),
+        ("lt", "to", 1),
         ("_H", "CodexMuxMenuItem", 5),
         ("S2", "CodexMuxUsageIcon", 2),
         ("jLa", "codexMuxResolveImageUrl", 1),
-        ("codexMuxOpenExternal", "AN", 1),
+        ("codexMuxOpenExternal", "eA", 1),
     ):
         pattern = re.compile(
             rf"(?<![A-Za-z0-9_$]){re.escape(original)}(?![A-Za-z0-9_$])"
@@ -861,16 +861,16 @@ def patch_account_component(component: str) -> str:
 
     prelude = r'''
 function CodexMuxMenuSeparator() {
-  return (0, m1.jsx)("div", {
+  return (0, o$.jsx)("div", {
     className: "w-full px-[var(--app-menu-separator-inset,var(--padding-row-x))] py-[var(--app-menu-separator-gutter,var(--spacing))]",
     role: "separator",
-    children: (0, m1.jsx)("div", {
+    children: (0, o$.jsx)("div", {
       className: "h-px w-full bg-border",
     }),
   });
 }
 function CodexMuxUsageIcon(props) {
-  return (0, m1.jsx)("span", {
+  return (0, o$.jsx)("span", {
     ...props,
     className: `${props?.className || ""} flex items-center justify-center rounded-full border border-current text-[9px]`,
     "aria-hidden": true,
@@ -889,19 +889,19 @@ function CodexMuxMenuItem({
 }) {
   const handler = onSelect || onClick;
   const iconClass = SubText ? "icon-sm" : "icon-xs";
-  const content = (0, m1.jsxs)(m1.Fragment, {
+  const content = (0, o$.jsxs)(o$.Fragment, {
     children: [
-      LeftIcon ? (0, m1.jsx)(LeftIcon, {
+      LeftIcon ? (0, o$.jsx)(LeftIcon, {
         className: `${iconClass} shrink-0 opacity-75 group-focus:opacity-100 group-hover:opacity-100`,
       }) : null,
-      (0, m1.jsxs)("span", {
+      (0, o$.jsxs)("span", {
         className: "flex min-w-0 flex-1 flex-col text-left",
         children: [
-          (0, m1.jsx)("span", {
+          (0, o$.jsx)("span", {
             className: `min-w-0 truncate ${tone === "danger" ? "text-danger" : "text-default"}`,
             children,
           }),
-          SubText ? (0, m1.jsx)("span", {
+          SubText ? (0, o$.jsx)("span", {
             className: "min-w-0 truncate text-xs leading-dense text-tertiary",
             children: SubText,
           }) : null,
@@ -912,12 +912,12 @@ function CodexMuxMenuItem({
   });
   const rowClass = `outline-hidden flex min-h-[var(--app-menu-item-height,0px)] w-full shrink-0 items-center justify-center gap-[var(--spacing-menu-item-content,calc(var(--spacing)*1.5))] rounded-xl p-[var(--app-menu-item-padding,var(--padding-row-y)_var(--padding-row-x))] text-(length:--app-menu-item-font-size,var(--text-sm)) leading-(--app-menu-item-line-height,var(--text-sm--line-height)) ${className}`;
   if (!handler) {
-    return (0, m1.jsx)("div", {
+    return (0, o$.jsx)("div", {
       className: rowClass,
       children: content,
     });
   }
-  return (0, m1.jsx)("button", {
+  return (0, o$.jsx)("button", {
     type: "button",
     className: `${rowClass} group cursor-interaction hover:bg-primary-ghost-hover focus:bg-primary-ghost-hover`,
     onClick: handler,
@@ -946,7 +946,7 @@ function codexMuxScopePluginRpcRequest(method, params) {
 '''
     suffix = (
         "\nglobalThis.CodexMuxAccountMenu=()=>"
-        "(0,m1.jsx)(CodexMuxAccountMenu,{});"
+        "(0,o$.jsx)(CodexMuxAccountMenu,{});"
         "globalThis.codexMuxScopePluginRpcRequest="
         "codexMuxScopePluginRpcRequest;\n"
     )
@@ -962,20 +962,20 @@ def patch_renderer(extracted: Path) -> None:
         raise RuntimeError("source app already contains the Codex multiplexer menu")
 
     external_open_helper_anchor = (
-        "function AN({clickModifiers:e,disposition:t,externalReturnSource:n,href:r,"
+        "function eA({clickModifiers:e,disposition:t,externalReturnSource:n,href:r,"
         "hostId:i,initiator:a,openTarget:o,openTargetIntent:s,originHostId:c,"
         "presentationIntent:l,source:u=`manual`,targetChromeTabId:d,"
-        "useExternalBrowser:f}){return Di(r)?(Id.dispatchMessage(`open-in-browser`,"
+        "useExternalBrowser:f}){return Di(r)?(Nd.dispatchMessage(`open-in-browser`,"
         "{...e==null?{}:{clickModifiers:e},disposition:t,externalReturnSource:n,"
         "hostId:i,initiator:a,openTarget:o,openTargetIntent:s,originHostId:c,"
         "presentationIntent:l,source:u,targetChromeTabId:d,useExternalBrowser:f,"
-        "url:Lo(r)}),!0):!1}"
+        "url:zo(r)}),!0):!1}"
     )
     external_open_source_call_anchor = (
-        "n?.stage===`gateway`&&n.authUrl!=null){AN({href:n.authUrl,"
+        "n?.stage===`gateway`&&n.authUrl!=null){eA({href:n.authUrl,"
         "initiator:`open_in_browser_bridge`,openTarget:`external-browser`});return}"
     )
-    component_anchor = "function yro(e){let t=(0,xro.c)(40)"
+    component_anchor = "function Xoo(e){let t=(0,Qoo.c)(40)"
     for anchor, description in (
         (external_open_helper_anchor, "native external-browser helper"),
         (external_open_source_call_anchor, "native OAuth external-browser call"),
@@ -994,8 +994,8 @@ def patch_renderer(extracted: Path) -> None:
     # leaving the mandatory startup requirements and version checks intact.
     bundle = replace_anchor(
         bundle,
-        "function fJo(e){let t=(0,pJo.c)(85),n;",
-        "function fJo(e){return null;let t=(0,pJo.c)(85),n;",
+        "function RXo(e){let t=(0,zXo.c)(85),n;",
+        "function RXo(e){return null;let t=(0,zXo.c)(85),n;",
         "independent-copy updater presentation",
     )
 
@@ -1011,9 +1011,9 @@ def patch_renderer(extracted: Path) -> None:
 
     for anchor, replacement, description in (
         (
-            "t(`app/list`,{cursor:n,limit:oNn,forceRefetch:e},{trace:r})",
+            "t(`app/list`,{cursor:n,limit:Azt,forceRefetch:e},{trace:r})",
             "t(`app/list`,codexMuxScopePluginRpcRequest(`app/list`,"
-            "{cursor:n,limit:oNn,forceRefetch:e}),{trace:r})",
+            "{cursor:n,limit:Azt,forceRefetch:e}),{trace:r})",
             "plugin app-list request",
         ),
         (
@@ -1028,9 +1028,9 @@ def patch_renderer(extracted: Path) -> None:
             "plugin app-read request",
         ),
         (
-            "function qYs(e,t,n){return e.sendRequest(t,n,{timeoutMs:ZYs})}",
-            "function qYs(e,t,n){return e.sendRequest(t,"
-            "codexMuxScopePluginRpcRequest(t,n),{timeoutMs:ZYs})}",
+            "function dQs(e,t,n){return e.sendRequest(t,n,{timeoutMs:hQs})}",
+            "function dQs(e,t,n){return e.sendRequest(t,"
+            "codexMuxScopePluginRpcRequest(t,n),{timeoutMs:hQs})}",
             "plugin status request bridge",
         ),
     ):
@@ -1038,51 +1038,51 @@ def patch_renderer(extracted: Path) -> None:
 
     bundle = replace_anchor(
         bundle,
-        "let e=await Tf.safeGet(`/wham/profiles/me`)",
+        "let e=await vf.safeGet(`/wham/profiles/me`)",
         "let e=await codexMuxProfileData("
         "globalThis.__codexMuxSelectedProfileAccountId??null)",
         "native profile stats request",
     )
     bundle = replace_anchor(
         bundle,
-        "function hDi(e){",
-        "function hDi(e){CodexMuxUseResetAccountState();",
+        "function QAi(e){",
+        "function QAi(e){CodexMuxUseResetAccountState();",
         "native Usage modal component",
     )
     reset_query_anchor = (
-        "function ovr(){let e=(0,RR.c)(1);kh(),W(null);let t;return "
+        "function ber(){let e=(0,xI.c)(1);Th(),W(null);let t;return "
         "e[0]===Symbol.for(`react.memo_cache_sentinel`)?"
-        "(t={queryKey:[`rate-limit-reset-credits`],queryFn:cvr,select:svr,"
-        "refetchInterval:Yd.ONE_MINUTE,staleTime:Yd.FIVE_SECONDS},e[0]=t):"
-        "t=e[0],jf(t)}"
+        "(t={queryKey:[`rate-limit-reset-credits`],queryFn:Ser,select:xer,"
+        "refetchInterval:Wd.ONE_MINUTE,staleTime:Wd.FIVE_SECONDS},e[0]=t):"
+        "t=e[0],wf(t)}"
     )
     bundle = replace_anchor(
         bundle,
         reset_query_anchor,
-        "function ovr(){let e=globalThis.__codexMuxResetAccountId;return jf({"
+        "function ber(){let e=globalThis.__codexMuxResetAccountId;return wf({"
         "queryKey:[`rate-limit-reset-credits`,e??`primary`],"
-        "queryFn:e?()=>codexMuxRateLimitResets(e):cvr,select:svr,"
-        "refetchInterval:Yd.ONE_MINUTE,staleTime:Yd.FIVE_SECONDS})}",
+        "queryFn:e?()=>codexMuxRateLimitResets(e):Ser,select:xer,"
+        "refetchInterval:Wd.ONE_MINUTE,staleTime:Wd.FIVE_SECONDS})}",
         "native reset-credit query",
     )
     reset_mutation_anchor = (
-        "function lvr(){let e=(0,RR.c)(3),t=Qa(),n=Pm(),r;return "
-        "e[0]!==n||e[1]!==t?(r={mutationFn:uvr,onSuccess:(e,r)=>{"
+        "function Cer(){let e=(0,xI.c)(3),t=to(),n=jm(),r;return "
+        "e[0]!==n||e[1]!==t?(r={mutationFn:wer,onSuccess:(e,r)=>{"
         "let{creditId:i}=r,a=e.code;if(a===`reset`||a===`already_redeemed`){"
         "let n=e.code===`reset`?e.credit?.id??i:i;"
-        "t.setQueryData([`rate-limit-reset-credits`],e=>N_r(e,a,n))}"
+        "t.setQueryData([`rate-limit-reset-credits`],e=>q9n(e,a,n))}"
         "Promise.all([n([`rate-limit-status`]),n([`rate-limit-reset-credits`])])}},"
-        "e[0]=n,e[1]=t,e[2]=r):r=e[2],Hh(r)}"
+        "e[0]=n,e[1]=t,e[2]=r):r=e[2],Ih(r)}"
     )
     bundle = replace_anchor(
         bundle,
         reset_mutation_anchor,
-        "function lvr(){let e=Qa(),t=Pm(),n=globalThis.__codexMuxResetAccountId,"
-        "r=[`rate-limit-reset-credits`,n??`primary`];return Hh({"
-        "mutationFn:n?e=>codexMuxConsumeRateLimitReset(n,e):uvr,"
+        "function Cer(){let e=to(),t=jm(),n=globalThis.__codexMuxResetAccountId,"
+        "r=[`rate-limit-reset-credits`,n??`primary`];return Ih({"
+        "mutationFn:n?e=>codexMuxConsumeRateLimitReset(n,e):wer,"
         "onSuccess:(n,i)=>{let{creditId:a}=i,o=n.code;"
         "if(o===`reset`||o===`already_redeemed`){let t=o===`reset`?"
-        "n.credit?.id??a:a;e.setQueryData(r,e=>N_r(e,o,t))}"
+        "n.credit?.id??a:a;e.setQueryData(r,e=>q9n(e,o,t))}"
         "Promise.all([t([`rate-limit-status`]),t(r)])}})}",
         "native reset-credit mutation",
     )
@@ -1114,8 +1114,8 @@ def patch_renderer(extracted: Path) -> None:
     dropdown = dropdown_path.read_text(encoding="utf-8")
     dropdown = replace_anchor(
         dropdown,
-        "usageItems:Jn",
-        "usageItems:globalThis.CodexMuxAccountMenu?.()??Jn",
+        "usageItems:qn",
+        "usageItems:globalThis.CodexMuxAccountMenu?.()??qn",
         "native profile usage menu slot",
     )
     dropdown_path.write_text(dropdown, encoding="utf-8")
@@ -1128,7 +1128,7 @@ def patch_renderer(extracted: Path) -> None:
         profile,
         "avatar:(0,$.jsxs)($.Fragment,{children:[",
         "avatar:(0,$.jsxs)($.Fragment,{children:["
-        "globalThis.CodexMuxProfileAvatarStack?.({onSelect:()=>yt.refetch()})??null,",
+        "globalThis.CodexMuxProfileAvatarStack?.({onSelect:()=>bt.refetch()})??null,",
         "native profile avatar",
     )
     profile_path.write_text(profile, encoding="utf-8")
@@ -1145,8 +1145,8 @@ def patch_renderer(extracted: Path) -> None:
     )
     modal = replace_anchor(
         modal,
-        "children:[je,Le,Re,ze]",
-        "children:[globalThis.__codexMuxResetAccountSelector??null,je,Le,Re,ze]",
+        "children:[Me,Le,Re,ze]",
+        "children:[globalThis.__codexMuxResetAccountSelector??null,Me,Le,Re,ze]",
         "native Usage modal body",
     )
     modal_path.write_text(modal, encoding="utf-8")
@@ -1157,21 +1157,21 @@ def patch_renderer(extracted: Path) -> None:
     plugin = plugin_path.read_text(encoding="utf-8")
     plugin = replace_anchor(
         plugin,
-        "C=(0,ao.jsx)(Sn,{title:h,subtitle:g,action:S,children:m})",
-        "C=(0,ao.jsx)(Sn,{title:h,subtitle:g,action:S,children:["
+        "C=(0,ao.jsx)(Xn,{title:h,subtitle:g,action:S,children:m})",
+        "C=(0,ao.jsx)(Xn,{title:h,subtitle:g,action:S,children:["
         "globalThis.CodexMuxPluginScope?.()??null,m]})",
         "native Plugins settings content",
     )
     oauth_anchor = (
-        "at(u,i).sendRequest(`mcpServer/oauth/login`,"
-        "{name:e,...I&&t!==`auto`?{clientRegistration:t}:{}})"
+        "st(u,i).sendRequest(`mcpServer/oauth/login`,"
+        "{name:e,...pe&&t!==`auto`?{clientRegistration:t}:{}})"
     )
     plugin = replace_anchor(
         plugin,
         oauth_anchor,
-        "at(u,i).sendRequest(`mcpServer/oauth/login`,"
+        "st(u,i).sendRequest(`mcpServer/oauth/login`,"
         "globalThis.codexMuxScopePluginRpcRequest(`mcpServer/oauth/login`,"
-        "{name:e,...I&&t!==`auto`?{clientRegistration:t}:{}}))",
+        "{name:e,...pe&&t!==`auto`?{clientRegistration:t}:{}}))",
         "native Plugins OAuth request",
     )
     plugin_path.write_text(plugin, encoding="utf-8")
@@ -1197,15 +1197,15 @@ def patch_renderer(extracted: Path) -> None:
         "thread route binding",
     )
     thread_component = replace_anchor(
-        thread_component, "TE.", "Tw.", "thread React binding", expected=2
+        thread_component, "TE.", "Dw.", "thread React binding", expected=2
     )
     thread_component = replace_anchor(
-        thread_component, "zE.", "vE.", "thread JSX binding", expected=6
+        thread_component, "zE.", "bE.", "thread JSX binding", expected=6
     )
     thread_component = replace_anchor(
         thread_component, "K.Section", "Q.Section", "thread section binding"
     )
-    thread_anchor = "function pE(e){let t=(0,gE.c)(60)"
+    thread_anchor = "function hE(e){let t=(0,vE.c)(60)"
     thread = replace_anchor(
         thread,
         thread_anchor,
@@ -1214,9 +1214,9 @@ def patch_renderer(extracted: Path) -> None:
     )
     thread = replace_anchor(
         thread,
-        "let A=k;if(m&&d!=null){",
-        "let A=[(0,vE.jsx)(CodexMuxThreadSubscription,{threadId:d},"
-        "`codex-mux-subscription`),k];if(m&&d!=null){",
+        "let A=k;if(p&&d!=null){",
+        "let A=[(0,bE.jsx)(CodexMuxThreadSubscription,{threadId:d},"
+        "`codex-mux-subscription`),k];if(p&&d!=null){",
         "native thread summary section list",
     )
     thread_path.write_text(thread, encoding="utf-8")
@@ -1318,7 +1318,7 @@ def patch_desktop_profile(
     shutil.copy2(PROJECT_ROOT / "ui" / "control-main.cjs", control_main)
     if control_main.read_bytes() != (PROJECT_ROOT / "ui" / "control-main.cjs").read_bytes():
         raise RuntimeError("copied control main helper does not match its source")
-    source_map_anchor = "//# sourceMappingURL=main-DPn4U9E8.js.map"
+    source_map_anchor = "//# sourceMappingURL=main-BbeJ4AAR.js.map"
     main_injection = (
         "require(require(`node:path`).join(__dirname,`control-main.cjs`));\n"
         ";if(process.env.CODEX_MUX_UI_TESTS===`1`)"
