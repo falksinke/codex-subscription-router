@@ -1307,7 +1307,7 @@ def patch_desktop_profile(
 
 
 def patch_app_server_launcher(extracted: Path) -> None:
-    """Route only the bundled local app-server launch through codex-mux."""
+    """Route only the bundled local desktop connection through codex-mux."""
     path = current_bundle_file(
         extracted, BUILD_FILES["app_server"], "application network bundle"
     )
@@ -1319,29 +1319,25 @@ def patch_app_server_launcher(extracted: Path) -> None:
     )
     if source.count(resolver_anchor) != 1:
         raise RuntimeError("could not verify the bundled macOS Codex resolver")
-    env_anchor = (
-        "o={...process.env,LOG_FORMAT:`json`,RUST_LOG:process.env.RUST_LOG??`warn`,"
-        "CODEX_INTERNAL_ORIGINATOR_OVERRIDE:e.defaultOriginator??Cs};if("
+    connect_anchor = (
+        "t=await Gs(this.options,e);if(!t)throw Error(`Unable to locate the Codex "
+        "CLI binary or required runtime components. Check the installation or "
+        "explicit runtime overrides.`);let n="
     )
-    env_replacement = (
-        "o={...process.env,LOG_FORMAT:`json`,RUST_LOG:process.env.RUST_LOG??`warn`,"
-        "CODEX_INTERNAL_ORIGINATOR_OVERRIDE:e.defaultOriginator??Cs},"
-        "h=process.platform===`darwin`&&e.hostConfig.kind===`local`&&"
-        "r.executablePath===Qt(e.resourcesPath)?"
-        "(0,c.join)(e.resourcesPath,`codex-mux`):null;"
-        "h!=null&&(o.CODEX_MUX_REAL_CODEX=r.executablePath);if("
-    )
-    source = replace_anchor(
-        source,
-        env_anchor,
-        env_replacement,
-        "bundled local app-server environment",
+    connect_replacement = (
+        "t=await Gs(this.options,e);if(!t)throw Error(`Unable to locate the Codex "
+        "CLI binary or required runtime components. Check the installation or "
+        "explicit runtime overrides.`);"
+        "process.platform===`darwin`&&this.options.hostConfig.kind===`local`&&"
+        "t.executablePath===Qt(this.options.resourcesPath)&&"
+        "(t={...t,executablePath:(0,c.join)(this.options.resourcesPath,`codex-mux`),"
+        "env:{...t.env,CODEX_MUX_REAL_CODEX:t.executablePath}});let n="
     )
     source = replace_anchor(
         source,
-        "return{executablePath:r.executablePath,args:[...r.args,",
-        "return{executablePath:h??r.executablePath,args:[...r.args,",
-        "bundled local app-server executable",
+        connect_anchor,
+        connect_replacement,
+        "bundled local desktop app-server connection",
     )
     path.write_text(source, encoding="utf-8")
 

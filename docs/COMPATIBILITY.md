@@ -25,10 +25,11 @@ and an approved ASAR digest.
 
 The app keeps the official bundled CLI at
 `Resources/codex-cli/CodexCLI.app/Contents/MacOS/codex`. The Electron
-app-server launch is redirected through `Resources/codex-mux` only when the
-official local bundled resolver selected that exact CLI. The real CLI path is
-passed to the router in `CODEX_MUX_REAL_CODEX`; `CODEX_CLI_PATH` continues to
-name the official binary.
+startup-policy connection uses that CLI directly. Only the normal long-lived
+desktop app-server connection is redirected through `Resources/codex-mux`, and
+only when the official local bundled resolver selected that exact CLI. The real
+CLI path is passed to the router in `CODEX_MUX_REAL_CODEX` while
+`CODEX_CLI_PATH` continues to name the official binary.
 
 The subscription controls use Electron IPC in the renderer and a private Unix
 socket between Electron's main process and `codex-mux`. The renderer does not
@@ -59,10 +60,13 @@ patcher changes only the 32-byte digest and does not disable an integrity fuse.
 A valid, locally available Apple Development or Developer ID Application
 identity is required. Apple Development includes certificates managed by
 Xcode's free Personal Team, so a paid Apple Developer Program membership is not
-inherently required. This exact build has not yet been launched with a free
-Personal Team certificate, so that route remains runtime-unverified. Ad-hoc
-signing is unsupported because it cannot satisfy the protected Electron
-helpers' library validation.
+inherently required. A free Personal Team certificate has successfully signed,
+installed, and launched this exact build through native main and renderer
+startup after the per-target entitlement, hardened-runtime, Apple-chain, team,
+and deep-strict checks passed. Usable startup and subscription switching remain
+unverified because that launch encountered the socket-routing collision
+addressed by this source change. Ad-hoc signing is unsupported because it
+cannot satisfy the protected Electron helpers' library validation.
 
 After updating the framework integrity digest, the patcher signs
 `libaperitif.dylib`, the seven companion helpers that enforce library
