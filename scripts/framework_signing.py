@@ -47,6 +47,7 @@ class SigningTarget:
     path: Path
     executable: Path
     metadata: SigningMetadata
+    is_library_code: bool = False
 
 
 @dataclass(frozen=True)
@@ -153,7 +154,12 @@ def _bundle_main_executable(bundle: Path) -> Path:
     return executable
 
 
-def _capture_target(path: Path, executable: Path) -> SigningTarget:
+def _capture_target(
+    path: Path,
+    executable: Path,
+    *,
+    is_library_code: bool = False,
+) -> SigningTarget:
     flags, runtime_version = _signature_flags_and_runtime(path)
     return SigningTarget(
         path=path,
@@ -164,6 +170,7 @@ def _capture_target(path: Path, executable: Path) -> SigningTarget:
             runtime_version=runtime_version,
             entitlements=_sanitized_entitlements(executable),
         ),
+        is_library_code=is_library_code,
     )
 
 
@@ -238,7 +245,11 @@ def capture_framework_signing_plan(
     library_path = version_root / "Libraries" / "libaperitif.dylib"
     if not library_path.is_file():
         raise RuntimeError("Codex Framework libaperitif.dylib was not found")
-    library = _capture_target(library_path, library_path)
+    library = _capture_target(
+        library_path,
+        library_path,
+        is_library_code=True,
+    )
     if library.metadata.identifier != "libaperitif":
         raise RuntimeError(
             "unexpected libaperitif signing identifier: "
@@ -250,7 +261,11 @@ def capture_framework_signing_plan(
     ):
         raise RuntimeError("libaperitif unexpectedly disables library validation")
 
-    framework_target = _capture_target(framework, framework_binary)
+    framework_target = _capture_target(
+        framework,
+        framework_binary,
+        is_library_code=True,
+    )
     return FrameworkSigningPlan(
         framework=framework_target,
         library=library,
@@ -280,6 +295,8 @@ def _sign_target(target: SigningTarget, identity: str) -> None:
     if metadata.entitlements is None:
         _run([*command, str(target.path)])
         return
+    if target.is_library_code:
+        command.append("--force-library-entitlements")
     with tempfile.TemporaryDirectory(prefix=".codesign-entitlements-") as temporary:
         entitlements_path = Path(temporary) / "entitlements.plist"
         with entitlements_path.open("wb") as handle:
@@ -332,7 +349,11 @@ def _verify_target(target: SigningTarget, expected_team: str) -> None:
         target.metadata.identifier,
         expected_team,
     )
-    actual = _capture_target(target.path, target.executable)
+    actual = _capture_target(
+        target.path,
+        target.executable,
+        is_library_code=target.is_library_code,
+    )
     if actual.metadata != target.metadata:
         raise RuntimeError(f"signing metadata changed unexpectedly on {target.path}")
 
