@@ -238,6 +238,7 @@ function CodexMuxAccountMenu() {
   const [routingPendingAccountId, setRoutingPendingAccountId] =
     kXc.useState(null);
   const routingPendingRef = kXc.useRef(false);
+  const routingReadGenerationRef = kXc.useRef(0);
   const [routingError, setRoutingError] = kXc.useState("");
   const [loading, setLoading] = kXc.useState(true);
   const [busy, setBusy] = kXc.useState(false);
@@ -247,6 +248,8 @@ function CodexMuxAccountMenu() {
   const loginAccountId = login?.accountId || null;
 
   const refresh = kXc.useCallback(async () => {
+    const routingReadGeneration = ++routingReadGenerationRef.current;
+    const canApplyRouting = !routingPendingRef.current;
     try {
       const result = await codexMuxRequest("/accounts");
       const nextAccounts = result.accounts || [];
@@ -254,8 +257,13 @@ function CodexMuxAccountMenu() {
         (account) => account.connected && account.enabled,
       );
       setAccounts(nextAccounts);
-      setRoutingAccountId(result.routing.accountId);
-      setRoutingLoaded(true);
+      if (
+        canApplyRouting &&
+        routingReadGeneration === routingReadGenerationRef.current
+      ) {
+        setRoutingAccountId(result.routing.accountId);
+        setRoutingLoaded(true);
+      }
       setError("");
       if (nextAccounts.some((account) => account.connected)) setLoading(false);
     } catch (requestError) {
@@ -343,6 +351,7 @@ function CodexMuxAccountMenu() {
     ) {
       return;
     }
+    routingReadGenerationRef.current += 1;
     routingPendingRef.current = true;
     setRoutingPending(true);
     setRoutingPendingAccountId(accountId);

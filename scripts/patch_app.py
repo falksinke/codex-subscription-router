@@ -841,7 +841,7 @@ def patch_account_component(component: str) -> str:
     )
     for original, replacement, expected in (
         ("e7", "o$", 69),
-        ("kXc", "$oo", 32),
+        ("kXc", "$oo", 33),
         ("QLs", "QAi", 1),
         ("BW", "ff", 1),
         ("lt", "to", 1),
