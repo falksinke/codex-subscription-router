@@ -47,6 +47,13 @@ main process, main-window preload, application network startup, account menu,
 profile, usage modal, plugin settings, and local-thread summary. Every anchor
 must occur exactly once before it is changed.
 
+The patcher hashes the exact raw UTF-8 JSON header stored in the repacked ASAR
+for `ElectronAsarIntegrity`. It also updates the enabled v1 integrity digest in
+the one concrete Codex Framework version binary. That binary update is allowed
+only when the framework contains one integrity sentinel with the enabled,
+supported slot and its old digest matches the verified source plist. The
+patcher changes only the 32-byte digest and does not disable an integrity fuse.
+
 ## Signing limits
 
 A team-backed Apple development or distribution identity gives the copied app
@@ -56,6 +63,12 @@ but Appshots and Computer Use may be unavailable because an ad-hoc signature
 cannot satisfy the original team-based trust and privacy grants. The patcher
 does not weaken those peer checks, retain the OpenAI APNs entitlement, or copy
 OpenAI provisioning profiles.
+
+After updating the framework integrity digest, the patcher restores the
+framework signature before signing the outer app. It preserves the source
+framework's hardened-runtime flag state and ordinary runtime capabilities,
+while removing team-scoped OpenAI grants. Existing nested framework signatures
+remain in place.
 
 Runtime validation of build `12246` is separate from this compatibility claim.
 The current port was produced by source inspection and exact-anchor checks; a

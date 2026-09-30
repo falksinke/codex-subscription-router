@@ -18,6 +18,12 @@ import tempfile
 import time
 from pathlib import Path
 
+from asar_integrity import (
+    patch_framework_integrity_digest,
+    raw_header_sha256,
+    resolve_codex_framework,
+    validated_source_integrity,
+)
 from source_validation import verify_source_app
 
 
@@ -54,6 +60,7 @@ TESTED_SOURCE_BUILDS = {
 }
 EXPECTED_CUA_IDENTIFIER_REPLACEMENTS = 49
 EXPECTED_ASAR_CUA_IDENTIFIER_REPLACEMENTS = 16
+CODE_SIGNATURE_RUNTIME_FLAG = 0x10000
 
 BUILD_FILES = {
     "app_server": ".vite/build/application-network-startup-D74LEWDz.js",
@@ -160,6 +167,25 @@ def signed_code_metadata(path: Path) -> tuple[str | None, str | None]:
     if team == "not set":
         team = None
     return identifier, team
+
+
+def code_signature_flags(path: Path) -> int:
+    result = subprocess.run(
+        ["codesign", "--display", "--verbose=4", str(path)],
+        check=True,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        text=True,
+    )
+    details = result.stdout + result.stderr
+    match = re.search(
+        r"^CodeDirectory .* flags=0x([0-9a-fA-F]+)",
+        details,
+        re.MULTILINE,
+    )
+    if match is None:
+        raise RuntimeError(f"could not read code-signing flags from {path}")
+    return int(match.group(1), 16)
 
 
 def verify_signed_code(
@@ -563,6 +589,43 @@ def sign_runtime_bundle(
                 sort_keys=True,
             )
         run([*command, "--entitlements", str(entitlements_path), str(bundle)])
+
+
+def capture_codex_framework_signing_metadata(
+    framework: Path,
+    binary: Path,
+) -> tuple[str, int, dict[str, object] | None]:
+    """Capture the framework signature properties before changing its binary."""
+    identifier, _ = signed_code_metadata(framework)
+    if identifier is None:
+        raise RuntimeError("Codex Framework has no code-signing identifier")
+    flags = code_signature_flags(framework)
+    unsupported_flags = flags & ~CODE_SIGNATURE_RUNTIME_FLAG
+    if unsupported_flags:
+        raise RuntimeError(
+            "Codex Framework uses unsupported code-signing flags: "
+            f"0x{flags:x}"
+        )
+    entitlements = sanitized_runtime_entitlements(binary)
+    return identifier, flags, entitlements
+
+
+def sign_modified_codex_framework(
+    framework: Path,
+    identity: str,
+    identifier: str,
+    source_flags: int,
+    entitlements: dict[str, object] | None,
+) -> None:
+    """Restore the modified framework signature before outer bundle signing."""
+    sign_runtime_bundle(
+        framework,
+        identity,
+        identifier=identifier,
+        entitlements=entitlements,
+        runtime=bool(source_flags & CODE_SIGNATURE_RUNTIME_FLAG),
+    )
+    run(["codesign", "--verify", "--deep", "--strict", str(framework)])
 
 
 def capture_computer_use_entitlements(
@@ -1278,7 +1341,7 @@ def patch_info_plist(
     app: Path,
     asar_path: Path,
     team_identifier: str | None,
-) -> None:
+) -> dict[str, object]:
     plist_path = app / "Contents" / "Info.plist"
     with plist_path.open("rb") as handle:
         info = plistlib.load(handle)
@@ -1301,12 +1364,14 @@ def patch_info_plist(
         url_type["CFBundleURLSchemes"] = [
             "codex-subscription-router" if value == "codex" else value for value in schemes
         ]
-    digest = hashlib.sha256(asar_path.read_bytes()).hexdigest()
-    info["ElectronAsarIntegrity"] = {
+    digest = raw_header_sha256(asar_path)
+    integrity: dict[str, object] = {
         "Resources/app.asar": {"algorithm": "SHA256", "hash": digest}
     }
+    info["ElectronAsarIntegrity"] = integrity
     with plist_path.open("wb") as handle:
         plistlib.dump(info, handle, fmt=plistlib.FMT_BINARY, sort_keys=False)
+    return integrity
 
 
 def patch_app(
@@ -1348,6 +1413,10 @@ def patch_app(
             "the source version, build, or app.asar hash is not approved; "
             "review and port the upstream change before patching"
         )
+    source_asar_integrity = validated_source_integrity(
+        source_info,
+        source_asar,
+    )
 
     for tool in ("codesign", "ditto", "go", "npm", "security", "xcrun"):
         require_tool(tool)
@@ -1380,6 +1449,17 @@ def patch_app(
         run(["ditto", str(source), str(staged_app)])
         verify_source_app(staged_app)
         staged_app.chmod(0o700)
+        codex_framework, codex_framework_binary = resolve_codex_framework(
+            staged_app
+        )
+        (
+            codex_framework_identifier,
+            codex_framework_flags,
+            codex_framework_entitlements,
+        ) = capture_codex_framework_signing_metadata(
+            codex_framework,
+            codex_framework_binary,
+        )
         staged_asar = staged_app / "Contents" / "Resources" / "app.asar"
         staged_asar_hash = hashlib.sha256(staged_asar.read_bytes()).hexdigest()
         if staged_asar_hash != source_asar_hash:
@@ -1430,7 +1510,23 @@ def patch_app(
         shutil.copy2(proxy, bundled_mux)
         bundled_mux.chmod(0o755)
 
-        patch_info_plist(staged_app, original_asar, team_identifier)
+        final_asar_integrity = patch_info_plist(
+            staged_app,
+            original_asar,
+            team_identifier,
+        )
+        patch_framework_integrity_digest(
+            codex_framework_binary,
+            source_asar_integrity,
+            final_asar_integrity,
+        )
+        sign_modified_codex_framework(
+            codex_framework,
+            signing_identity,
+            codex_framework_identifier,
+            codex_framework_flags,
+            codex_framework_entitlements,
+        )
         print(f"Signing independent app copy with {signing_identity}…")
         sign_independent_app(staged_app, signing_identity, team_identifier)
         verify_signed_code(
