@@ -953,6 +953,16 @@ def patch_renderer(extracted: Path) -> None:
     if "function CodexMuxAccountMenu(" in bundle:
         raise RuntimeError("source app already contains the Codex multiplexer menu")
 
+    # This independently signed copy is rebuilt from reviewed source; it cannot
+    # apply official in-app updates. Suppress only the updater presentation,
+    # leaving the mandatory startup requirements and version checks intact.
+    bundle = replace_anchor(
+        bundle,
+        "function fJo(e){let t=(0,pJo.c)(85),n;",
+        "function fJo(e){return null;let t=(0,pJo.c)(85),n;",
+        "independent-copy updater presentation",
+    )
+
     component = patch_account_component(
         (PROJECT_ROOT / "ui" / "account-menu.js").read_text(encoding="utf-8")
     )
