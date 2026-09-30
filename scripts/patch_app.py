@@ -24,6 +24,12 @@ from asar_integrity import (
     resolve_codex_framework,
     validated_source_integrity,
 )
+from framework_signing import (
+    capture_framework_signing_plan,
+    sign_framework_tree,
+    verify_apple_signed_code,
+    verify_untouched_service,
+)
 from source_validation import verify_source_app
 
 
@@ -60,7 +66,6 @@ TESTED_SOURCE_BUILDS = {
 }
 EXPECTED_CUA_IDENTIFIER_REPLACEMENTS = 49
 EXPECTED_ASAR_CUA_IDENTIFIER_REPLACEMENTS = 16
-CODE_SIGNATURE_RUNTIME_FLAG = 0x10000
 
 BUILD_FILES = {
     "app_server": ".vite/build/application-network-startup-D74LEWDz.js",
@@ -89,11 +94,6 @@ def parse_args() -> argparse.Namespace:
         help="Replace an existing destination after moving it to a timestamped backup.",
     )
     parser.add_argument(
-        "--allow-adhoc-signing",
-        action="store_true",
-        help="Allow an ad-hoc signature (Appshots and Computer Use may stop working).",
-    )
-    parser.add_argument(
         "--allow-signing-team-change",
         action="store_true",
         help="Replace an existing build signed by a different Apple team.",
@@ -114,41 +114,115 @@ def require_tool(name: str) -> None:
         raise RuntimeError(f"required tool not found: {name}")
 
 
-def resolve_signing_identity(allow_adhoc: bool) -> str:
+def signing_certificate_team_identifier(identity: str, fingerprint: str) -> str:
+    certificates = subprocess.check_output(
+        ["security", "find-certificate", "-a", "-c", identity, "-p"]
+    )
+    matched_subjects: list[str] = []
+    for certificate_match in re.finditer(
+        rb"-----BEGIN CERTIFICATE-----.*?-----END CERTIFICATE-----",
+        certificates,
+        re.DOTALL,
+    ):
+        certificate = certificate_match.group(0) + b"\n"
+        details = subprocess.run(
+            [
+                "openssl",
+                "x509",
+                "-noout",
+                "-fingerprint",
+                "-sha1",
+                "-subject",
+                "-nameopt",
+                "sep_multiline",
+            ],
+            input=certificate,
+            check=True,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=False,
+        ).stdout.decode("utf-8", errors="strict")
+        fingerprint_match = re.search(
+            r"^[^=]*Fingerprint=([0-9A-Fa-f:]+)$",
+            details,
+            re.MULTILINE,
+        )
+        if fingerprint_match is None:
+            continue
+        actual_fingerprint = fingerprint_match.group(1).replace(":", "").upper()
+        if actual_fingerprint == fingerprint:
+            matched_subjects.append(details)
+    if len(matched_subjects) != 1:
+        raise RuntimeError(
+            "the selected code-signing identity's public certificate was not unique"
+        )
+    subject = matched_subjects[0]
+    common_name_match = re.search(r"^\s*CN\s*=\s*(.+)$", subject, re.MULTILINE)
+    team_match = re.search(
+        r"^\s*OU\s*=\s*([A-Z0-9]{10})$",
+        subject,
+        re.MULTILINE,
+    )
+    if common_name_match is None or not common_name_match.group(1).startswith(
+        PREFERRED_SIGNING_IDENTITY_PREFIXES
+    ):
+        raise RuntimeError(
+            "the selected certificate is not Apple Development or "
+            "Developer ID Application"
+        )
+    if team_match is None:
+        raise RuntimeError(
+            "the selected certificate has no 10-character Apple team identifier"
+        )
+    return team_match.group(1)
+
+
+def resolve_signing_identity() -> tuple[str, str]:
     configured = os.environ.get("CODEX_MUX_SIGNING_IDENTITY", "").strip()
-    if configured:
-        return configured
     identities = output(["security", "find-identity", "-v", "-p", "codesigning"])
     available = re.findall(
-        r'^\s*\d+\)\s+[0-9A-F]+\s+"([^"]+)"',
+        r'^\s*\d+\)\s+([0-9A-Fa-f]{40})\s+"([^"]+)"',
         identities,
         re.MULTILINE,
     )
-    for prefix in PREFERRED_SIGNING_IDENTITY_PREFIXES:
-        for identity in available:
-            if identity.startswith(prefix):
-                return identity
-    if allow_adhoc:
-        print(
-            "Warning: using an ad-hoc signature; Appshots and Computer Use may be unavailable.",
-            file=sys.stderr,
+    qualified = [
+        (fingerprint.upper(), name)
+        for fingerprint, name in available
+        if name.startswith(PREFERRED_SIGNING_IDENTITY_PREFIXES)
+    ]
+    if configured:
+        matches = [
+            (fingerprint, name)
+            for fingerprint, name in qualified
+            if configured == name or configured.upper() == fingerprint
+        ]
+        if len(matches) != 1:
+            raise RuntimeError(
+                "CODEX_MUX_SIGNING_IDENTITY must select one available Apple "
+                "Development or Developer ID Application identity"
+            )
+        fingerprint, identity = matches[0]
+    else:
+        selected = next(
+            (
+                (fingerprint, name)
+                for prefix in PREFERRED_SIGNING_IDENTITY_PREFIXES
+                for fingerprint, name in qualified
+                if name.startswith(prefix)
+            ),
+            None,
         )
-        return "-"
-    raise RuntimeError(
-        "no team-backed code-signing identity found; set CODEX_MUX_SIGNING_IDENTITY "
-        "or explicitly pass --allow-adhoc-signing"
-    )
-
-
-def signing_team_identifier(identity: str) -> str | None:
-    if identity == "-":
-        return None
-    match = re.search(r"\(([A-Z0-9]{10})\)$", identity)
-    if match is None:
+        if selected is None:
+            fingerprint, identity = "", ""
+        else:
+            fingerprint, identity = selected
+    if not identity:
         raise RuntimeError(
-            "the signing identity must end with its 10-character Apple team ID"
+            "no available Apple Development or Developer ID Application "
+            "code-signing identity was found"
         )
-    return match.group(1)
+    team_identifier = signing_certificate_team_identifier(identity, fingerprint)
+    return fingerprint, team_identifier
 
 
 def signed_code_metadata(path: Path) -> tuple[str | None, str | None]:
@@ -169,38 +243,12 @@ def signed_code_metadata(path: Path) -> tuple[str | None, str | None]:
     return identifier, team
 
 
-def code_signature_flags(path: Path) -> int:
-    result = subprocess.run(
-        ["codesign", "--display", "--verbose=4", str(path)],
-        check=True,
-        stdout=subprocess.PIPE,
-        stderr=subprocess.PIPE,
-        text=True,
-    )
-    details = result.stdout + result.stderr
-    match = re.search(
-        r"^CodeDirectory .* flags=0x([0-9a-fA-F]+)",
-        details,
-        re.MULTILINE,
-    )
-    if match is None:
-        raise RuntimeError(f"could not read code-signing flags from {path}")
-    return int(match.group(1), 16)
-
-
 def verify_signed_code(
     path: Path,
     expected_identifier: str,
-    expected_team: str | None,
+    expected_team: str,
 ) -> None:
-    run(["codesign", "--verify", "--deep", "--strict", str(path)])
-    identifier, team = signed_code_metadata(path)
-    if identifier != expected_identifier:
-        raise RuntimeError(
-            f"unexpected signing identifier on {path}: {identifier!r}"
-        )
-    if team != expected_team:
-        raise RuntimeError(f"unexpected signing team on {path}: {team!r}")
+    verify_apple_signed_code(path, expected_identifier, expected_team)
 
 
 def existing_signing_team(path: Path) -> str | None:
@@ -334,7 +382,7 @@ def retire_stale_cached_computer_use_app() -> None:
     print(f"Stale cached Computer Use helper moved to {backup}")
 
 
-def patch_computer_use_identity(app: Path, team_identifier: str | None) -> None:
+def patch_computer_use_identity(app: Path, team_identifier: str) -> None:
     """Give the copied CUA service an independent identity and trusted callers."""
     package = computer_use_package(app)
     service = package / "Codex Computer Use.app"
@@ -372,8 +420,6 @@ def patch_computer_use_identity(app: Path, team_identifier: str | None) -> None:
     with plist_path.open("wb") as handle:
         plistlib.dump(info, handle, fmt=plistlib.FMT_BINARY, sort_keys=False)
 
-    if team_identifier is None:
-        return
     binary = executable.read_bytes()
     replacement = arm64_swift_small_string(team_identifier)
     for original_team, description in (
@@ -591,43 +637,6 @@ def sign_runtime_bundle(
         run([*command, "--entitlements", str(entitlements_path), str(bundle)])
 
 
-def capture_codex_framework_signing_metadata(
-    framework: Path,
-    binary: Path,
-) -> tuple[str, int, dict[str, object] | None]:
-    """Capture the framework signature properties before changing its binary."""
-    identifier, _ = signed_code_metadata(framework)
-    if identifier is None:
-        raise RuntimeError("Codex Framework has no code-signing identifier")
-    flags = code_signature_flags(framework)
-    unsupported_flags = flags & ~CODE_SIGNATURE_RUNTIME_FLAG
-    if unsupported_flags:
-        raise RuntimeError(
-            "Codex Framework uses unsupported code-signing flags: "
-            f"0x{flags:x}"
-        )
-    entitlements = sanitized_runtime_entitlements(binary)
-    return identifier, flags, entitlements
-
-
-def sign_modified_codex_framework(
-    framework: Path,
-    identity: str,
-    identifier: str,
-    source_flags: int,
-    entitlements: dict[str, object] | None,
-) -> None:
-    """Restore the modified framework signature before outer bundle signing."""
-    sign_runtime_bundle(
-        framework,
-        identity,
-        identifier=identifier,
-        entitlements=entitlements,
-        runtime=bool(source_flags & CODE_SIGNATURE_RUNTIME_FLAG),
-    )
-    run(["codesign", "--verify", "--deep", "--strict", str(framework)])
-
-
 def capture_computer_use_entitlements(
     app: Path,
 ) -> dict[Path, dict[str, object] | None]:
@@ -702,7 +711,7 @@ def sign_computer_use_code(
 
 
 def sign_independent_app(
-    app: Path, identity: str, team_identifier: str | None
+    app: Path, identity: str, team_identifier: str
 ) -> None:
     """Apply one stable identity throughout the modified Electron bundle."""
     computer_use_entitlements = capture_computer_use_entitlements(app)
@@ -1340,7 +1349,7 @@ def patch_app_server_launcher(extracted: Path) -> None:
 def patch_info_plist(
     app: Path,
     asar_path: Path,
-    team_identifier: str | None,
+    team_identifier: str,
 ) -> dict[str, object]:
     plist_path = app / "Contents" / "Info.plist"
     with plist_path.open("rb") as handle:
@@ -1352,7 +1361,7 @@ def patch_info_plist(
     info["CFBundleIdentifier"] = DESKTOP_BUNDLE_IDENTIFIER
     info["CFBundleExecutable"] = "CodexSubscriptionRouterLauncher"
     info["BundleSigningBaseName"] = "CodexSubscriptionRouter"
-    info["CodexMuxSigningTeamIdentifier"] = team_identifier or "adhoc"
+    info["CodexMuxSigningTeamIdentifier"] = team_identifier
     info["CrProductDirName"] = DESKTOP_PROFILE_NAME
     for key in list(info):
         if key.startswith("SU"):
@@ -1378,7 +1387,6 @@ def patch_app(
     source: Path,
     destination: Path,
     force: bool,
-    allow_adhoc_signing: bool,
     allow_signing_team_change: bool,
 ) -> None:
     source = source.expanduser()
@@ -1418,12 +1426,17 @@ def patch_app(
         source_asar,
     )
 
-    for tool in ("codesign", "ditto", "go", "npm", "security", "xcrun"):
+    for tool in (
+        "codesign",
+        "ditto",
+        "go",
+        "npm",
+        "openssl",
+        "security",
+        "xcrun",
+    ):
         require_tool(tool)
-    asar = ensure_asar_tool()
-    load_or_create_token()
-    signing_identity = resolve_signing_identity(allow_adhoc_signing)
-    team_identifier = signing_team_identifier(signing_identity)
+    signing_identity, team_identifier = resolve_signing_identity()
     if destination.exists():
         installed_team = existing_signing_team(destination)
         if installed_team != team_identifier and not allow_signing_team_change:
@@ -1431,6 +1444,8 @@ def patch_app(
                 "the selected signing team differs from the installed build; "
                 "reuse the prior identity or pass --allow-signing-team-change"
             )
+    asar = ensure_asar_tool()
+    load_or_create_token()
     destination.parent.mkdir(parents=True, exist_ok=True)
     installed_computer_use_app = destination.parent / COMPUTER_USE_APP_NAME
     if force:
@@ -1452,11 +1467,7 @@ def patch_app(
         codex_framework, codex_framework_binary = resolve_codex_framework(
             staged_app
         )
-        (
-            codex_framework_identifier,
-            codex_framework_flags,
-            codex_framework_entitlements,
-        ) = capture_codex_framework_signing_metadata(
+        framework_signing_plan = capture_framework_signing_plan(
             codex_framework,
             codex_framework_binary,
         )
@@ -1520,15 +1531,14 @@ def patch_app(
             source_asar_integrity,
             final_asar_integrity,
         )
-        sign_modified_codex_framework(
-            codex_framework,
+        sign_framework_tree(
+            framework_signing_plan,
             signing_identity,
-            codex_framework_identifier,
-            codex_framework_flags,
-            codex_framework_entitlements,
+            team_identifier,
         )
         print(f"Signing independent app copy with {signing_identity}…")
         sign_independent_app(staged_app, signing_identity, team_identifier)
+        verify_untouched_service(framework_signing_plan)
         verify_signed_code(
             staged_app,
             DESKTOP_BUNDLE_IDENTIFIER,
@@ -1612,7 +1622,6 @@ def main() -> int:
             args.source,
             args.destination,
             args.force,
-            args.allow_adhoc_signing,
             args.allow_signing_team_change,
         )
     except (RuntimeError, OSError, subprocess.CalledProcessError) as error:

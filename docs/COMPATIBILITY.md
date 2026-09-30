@@ -56,19 +56,24 @@ patcher changes only the 32-byte digest and does not disable an integrity fuse.
 
 ## Signing limits
 
-A team-backed Apple development or distribution identity gives the copied app
-and its modified Computer Use helper one consistent signing team. With the
-explicit `--allow-adhoc-signing` option, the core account router can be built,
-but Appshots and Computer Use may be unavailable because an ad-hoc signature
-cannot satisfy the original team-based trust and privacy grants. The patcher
-does not weaken those peer checks, retain the OpenAI APNs entitlement, or copy
-OpenAI provisioning profiles.
+A valid, locally available Apple Development or Developer ID Application
+identity is required. Apple Development includes certificates managed by
+Xcode's free Personal Team, so a paid Apple Developer Program membership is not
+inherently required. This exact build has not yet been launched with a free
+Personal Team certificate, so that route remains runtime-unverified. Ad-hoc
+signing is unsupported because it cannot satisfy the protected Electron
+helpers' library validation.
 
-After updating the framework integrity digest, the patcher restores the
-framework signature before signing the outer app. It preserves the source
-framework's hardened-runtime flag state and ordinary runtime capabilities,
-while removing team-scoped OpenAI grants. Existing nested framework signatures
-remain in place.
+After updating the framework integrity digest, the patcher signs
+`libaperitif.dylib`, the seven companion helpers that enforce library
+validation, the framework, and then the outer app with the same selected Apple
+identity. Each target keeps its own signing identifier, hardened-runtime flag,
+runtime version, and ordinary sanitized capabilities. The existing
+`Codex (Service).app` signature and its upstream library-validation exception
+remain unchanged. Finished modified code must match the selected Team ID and an
+Apple certificate-chain anchor. The patcher does not weaken peer checks,
+disable library validation, retain OpenAI team grants or APNs provisioning, or
+copy OpenAI provisioning profiles.
 
 Runtime validation of build `12246` is separate from this compatibility claim.
 The current port was produced by source inspection and exact-anchor checks; a
