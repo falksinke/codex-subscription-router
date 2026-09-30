@@ -28,8 +28,9 @@ The app keeps the official bundled CLI at
 startup-policy connection uses that CLI directly. Only the normal long-lived
 desktop app-server connection is redirected through `Resources/codex-mux`, and
 only when the official local bundled resolver selected that exact CLI. The real
-CLI path is passed to the router in `CODEX_MUX_REAL_CODEX` while
-`CODEX_CLI_PATH` continues to name the official binary.
+CLI path is passed to the router in `CODEX_MUX_REAL_CODEX`. A configured
+`codex_cli_command` or nonblank `CODEX_CLI_PATH` bypasses this routing even when
+it points to the bundled executable.
 
 The subscription controls use Electron IPC in the renderer and a private Unix
 socket between Electron's main process and `codex-mux`. The renderer does not

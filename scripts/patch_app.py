@@ -1329,6 +1329,8 @@ def patch_app_server_launcher(extracted: Path) -> None:
         "CLI binary or required runtime components. Check the installation or "
         "explicit runtime overrides.`);"
         "process.platform===`darwin`&&this.options.hostConfig.kind===`local`&&"
+        "!process.env.CODEX_CLI_PATH?.trim()&&"
+        "this.options.hostConfig.codex_cli_command==null&&"
         "t.executablePath===Qt(this.options.resourcesPath)&&"
         "(t={...t,executablePath:(0,c.join)(this.options.resourcesPath,`codex-mux`),"
         "env:{...t.env,CODEX_MUX_REAL_CODEX:t.executablePath}});let n="
