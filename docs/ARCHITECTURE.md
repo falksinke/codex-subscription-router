@@ -3,13 +3,16 @@
 The independently built desktop uses bundle identifier `app.cdxmux.multi`; its
 Computer Use helper uses `com.cdxmux.sky.CUAService`. Neither identifier is used
 by the official ChatGPT installation. These identifiers and the `.codex-mux`
-state directory remain stable across the product rename so existing macOS
-privacy grants, connected accounts, and sticky thread ownership continue to
-work.
+state directory remain stable across the product rename to preserve connected
+accounts and sticky thread ownership. Privacy-grant continuity additionally
+requires the same team-backed signing identity and designated requirement;
+ad-hoc signing may not receive or retain those grants.
 
-Codex Subscription Router replaces the copied app's bundled `codex` executable
-with a small Go multiplexer and keeps the original binary beside it as
-`codex.real`.
+Codex Subscription Router leaves the copied `CodexCLI.app` executable in place.
+At Electron's bundled local app-server launch, it substitutes a small Go
+multiplexer at `Contents/Resources/codex-mux`. `CODEX_MUX_REAL_CODEX` identifies
+the official executable for account children, while `CODEX_CLI_PATH` continues
+to point to the official binary for other desktop operations.
 
 ## Request routing
 
@@ -43,9 +46,10 @@ The patcher extracts `app.asar`, verifies exact upstream anchors, inserts the
 account UI, disables self-update, and repacks the archive with an updated
 integrity hash. The app receives a separate Chromium profile and URL scheme.
 
-The copied Computer Use service, Node runtime, and callers are re-signed under
-one Apple team. The helper uses a separate bundle identity and socket, avoiding
-the official app's privacy grants and app-group container.
+The copied Computer Use service, Node runtime, and callers are re-signed with
+one selected local identity; certificate-backed builds use one Apple team.
+The helper uses a separate bundle identity and socket, with its own macOS
+privacy grants and without the official app-group container.
 
 ## Plugin behavior
 
@@ -56,8 +60,14 @@ before forwarding the strict RPC request to the chosen child.
 
 ## Control API
 
-The renderer talks to a loopback-only HTTP service on port 48123. All private
-routes require a random 256-bit token. CORS is limited to the copied app's
-`app://-` origin. The service exposes account metadata, aggregated usage and
-profile data, thread ownership, login/logout actions, and an authenticated SSE
-event stream; it never returns OAuth tokens.
+The renderer calls a narrow preload bridge. Electron main verifies the sender
+is the app's `app://-` main frame and proxies only approved operations to HTTP
+over `~/.codex-mux/control.sock`. The state directory is owner-only and the
+socket is mode `0600`; there is no production TCP listener. Electron main reads
+the random 256-bit token from a private file and attaches it to socket requests.
+The token never enters the renderer or its event URLs.
+
+The service exposes account metadata, aggregated usage and profile data, thread
+ownership, login/logout actions, and an authenticated SSE event stream; it never
+returns OAuth tokens. Main and preload fan events out to renderer subscribers
+and close streams on navigation, unsubscribe, or window destruction.

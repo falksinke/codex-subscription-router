@@ -2,10 +2,14 @@
 
 ## Trust boundaries
 
-- The official ChatGPT app is trusted build input and remains unchanged.
+- The official Codex app is trusted build input only after strict verification
+  of its Apple-anchored OpenAI signature, identity, team, and arm64 executable.
+  It remains unchanged.
 - The patcher has local filesystem and code-signing access by design.
-- Each real Codex child is trusted with only its assigned account home.
-- The injected renderer is trusted with the loopback control token.
+- Each real Codex child receives its assigned account home, shared MCP/plugin
+  configuration, and the inherited process environment.
+- Electron main holds the private control token. The injected renderer receives
+  only a restricted account-operation and event bridge.
 - Other local users and remote origins are outside the control API boundary.
 - Processes running as the same macOS user are not considered isolated from
   one another; they can already read that user's app data subject to macOS
@@ -31,30 +35,52 @@ shared plugin configuration.
 
 ## Network
 
-The control server binds to `127.0.0.1`. Private endpoints require the token
-embedded into the independently built local renderer. Profile images must use
-HTTPS. Response sizes and JSON request bodies are bounded.
+The production control server binds to an owner-only Unix socket in the private
+state directory. It binds before account children start and fails closed when
+the socket cannot be acquired safely. It has no TCP fallback. Private endpoints
+require a token read from the owner-only file by Electron main, never embedded
+in the renderer or an event-stream URL.
 
-The project itself does not provide a telemetry or update endpoint. Network
-traffic beyond loopback is performed by the official Codex children or by the
-documented ChatGPT profile and rate-limit APIs.
+The preload exposes a fixed request/event bridge. Electron main verifies the
+sender is the app's `app://-` main frame and permits only specified routes,
+methods, queries, and body fields. Response sizes, event buffers, and JSON
+request bodies are bounded; control redirects are rejected. Profile images must
+use HTTPS but their hosts come from upstream profile data.
+
+The project itself does not provide a telemetry or update endpoint. At runtime,
+traffic beyond the private socket is performed by the official Codex children
+or by the documented ChatGPT profile and rate-limit APIs. Installation downloads
+the locked npm build dependency graph from the npm registry, with lifecycle
+scripts disabled.
+
+Automatic failover can transfer conversation history to another connected
+account. Account homes do not enforce organizational or tenant data separation;
+connect only accounts whose policies allow that behavior.
 
 ## Signing and native access
 
-The source app is copied into a temporary staging directory. Native modules,
-the Computer Use helper, Node runtime, mux, and final app are signed under one
-selected Apple team and verified before replacement. Official OpenAI
+The source app and its pristine staged copy pass the OpenAI signature gate
+before modification. The patcher accepts only the recorded version, build, and
+ASAR digest. Native modules, the Computer Use helper, Node runtime, mux, and
+final app are signed with the selected local identity and verified before
+replacement. Certificate-backed builds use one Apple team. Official OpenAI
 application-group and keychain entitlements are removed from modified callers.
 
 The native helper's caller allowlist is patched to the selected team and the
 independent desktop bundle ID. This is required for the helper's peer checks;
 it does not bypass macOS Accessibility or Screen Recording consent.
 
+An explicit ad-hoc build is available when no Apple certificate exists. It does
+not provide a team-backed identity; Appshots and Computer Use may be unavailable.
+The helper's caller and macOS consent checks remain in place.
+
 ## Diagnostics
 
 `CODEX_MUX_UI_TESTS=1` enables deterministic preview and screenshot endpoints.
-They are unavailable during a normal launch, bind only to loopback, and require
-the same control token. Release workflows never set this variable.
+They are unavailable during a normal launch. The diagnostic UI bridge retains
+its separate loopback listener; production account control still uses only the
+private socket. Release workflows never set this variable. Legacy scripts that
+targeted production TCP port 48123 require adaptation.
 
 ## Distribution
 

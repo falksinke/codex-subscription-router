@@ -2,9 +2,7 @@
 
 set -euo pipefail
 
-readonly REPOSITORY_URL="https://github.com/b-nnett/codex-subscription-router.git"
-readonly DEFAULT_SOURCE_DIR="${HOME}/.codex-subscription-router/source"
-readonly SOURCE_DIR="${CODEX_SUBSCRIPTION_ROUTER_SOURCE_DIR:-${DEFAULT_SOURCE_DIR}}"
+readonly EXPECTED_REVISION="${CODEX_SUBSCRIPTION_ROUTER_REVISION:-}"
 readonly DESTINATION_APP="${HOME}/Applications/Codex Subscription Router.app"
 readonly DESTINATION_HELPER="${HOME}/Applications/Codex Subscription Router Computer Use.app"
 
@@ -65,53 +63,22 @@ resolve_source_dir() {
     if [ -n "${script_source}" ] && [ -f "${script_source}" ]; then
         script_dir="$(CDPATH= cd -- "$(dirname -- "${script_source}")" && pwd)"
     fi
-    if [ -n "${script_dir}" ] && [ -f "${script_dir}/scripts/patch_app.py" ]; then
-        printf '%s\n' "${script_dir}"
-        return
+    if [ -z "${script_dir}" ] || [ ! -f "${script_dir}/scripts/patch_app.py" ]; then
+        fail "run install.sh from a reviewed local Git checkout; remote shell execution is not supported."
     fi
-
-    if [ -d "${SOURCE_DIR}/.git" ]; then
-        if [ -n "$(git -C "${SOURCE_DIR}" status --porcelain)" ]; then
-            fail "${SOURCE_DIR} has local changes; preserve or commit them before updating."
-        fi
-        if [ "$(git -C "${SOURCE_DIR}" branch --show-current)" != "main" ]; then
-            fail "${SOURCE_DIR} is not on main; switch branches or set CODEX_SUBSCRIPTION_ROUTER_SOURCE_DIR."
-        fi
-        log "Updating source"
-        git -C "${SOURCE_DIR}" pull --ff-only origin main >&2
-    elif [ -e "${SOURCE_DIR}" ]; then
-        fail "${SOURCE_DIR} exists but is not a Git repository."
-    else
-        log "Downloading source"
-        mkdir -p "$(dirname -- "${SOURCE_DIR}")"
-        git clone --depth 1 --branch main "${REPOSITORY_URL}" "${SOURCE_DIR}" >&2
+    if ! [[ "${EXPECTED_REVISION}" =~ ^[0-9a-f]{40}$ ]]; then
+        fail "set CODEX_SUBSCRIPTION_ROUTER_REVISION to the full commit SHA you reviewed."
     fi
-    printf '%s\n' "${SOURCE_DIR}"
-}
-
-stop_bundle_processes() {
-    local bundle_path="$1"
-    local process_id
-    local command_line
-    local attempt
-
-    for attempt in 1 2 3 4 5 6 7 8 9 10; do
-        local found_process="false"
-        for process_id in $(pgrep -f "${bundle_path}/Contents/" 2>/dev/null || true); do
-            command_line="$(ps -p "${process_id}" -o command= 2>/dev/null || true)"
-            case "${command_line}" in
-                "${bundle_path}/Contents/"*)
-                    found_process="true"
-                    kill "${process_id}" 2>/dev/null || true
-                    ;;
-            esac
-        done
-        if [ "${found_process}" = "false" ]; then
-            return
-        fi
-        sleep 1
-    done
-    fail "could not stop processes belonging to ${bundle_path}."
+    if [ "$(git -C "${script_dir}" rev-parse --show-toplevel)" != "${script_dir}" ]; then
+        fail "install.sh must be at the root of its reviewed Git checkout."
+    fi
+    if [ "$(git -C "${script_dir}" rev-parse HEAD)" != "${EXPECTED_REVISION}" ]; then
+        fail "the checkout does not match the reviewed revision."
+    fi
+    if [ -n "$(git -C "${script_dir}" status --porcelain --untracked-files=all)" ]; then
+        fail "the reviewed checkout has local changes; review and commit them before installation."
+    fi
+    printf '%s\n' "${script_dir}"
 }
 
 main() {
@@ -127,10 +94,10 @@ main() {
 
     local patch_arguments=()
     if [ -d "${DESTINATION_APP}" ] || [ -d "${DESTINATION_HELPER}" ]; then
-        log "Stopping the existing installation"
-        stop_bundle_processes "${DESTINATION_APP}"
-        stop_bundle_processes "${DESTINATION_HELPER}"
         patch_arguments+=("--force")
+    fi
+    if [ "${CODEX_SUBSCRIPTION_ROUTER_ALLOW_ADHOC_SIGNING:-0}" = "1" ]; then
+        patch_arguments+=("--allow-adhoc-signing")
     fi
 
     log "Building and signing Codex Subscription Router"

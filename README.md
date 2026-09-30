@@ -35,8 +35,9 @@ binaries or a prebuilt application.
   between accounts.
 - **Per-account resets.** The native rate-limit sheet shows and consumes resets
   for the selected subscription.
-- **Working macOS integrations.** The copied Appshots and Computer Use helper is
-  independently identified and signed so it can receive its own privacy grants.
+- **Separate macOS integrations.** The copied Appshots and Computer Use helper
+  has its own identity. Reliable native access requires an Apple team-backed
+  signing certificate; ad-hoc builds may lack these features.
 
 ## How it works
 
@@ -73,15 +74,16 @@ Codex Subscription Router currently targets:
 | Component | Supported value |
 | --- | --- |
 | Platform | macOS on Apple silicon |
-| Official ChatGPT version | `26.803.61601` |
-| Official bundle build | `6396` |
+| Official Codex app version | `26.928.20755` |
+| Official bundle build | `12246` |
 | Go | 1.26 or newer |
 | Node.js | 22.12 or newer |
 
-The patcher verifies the official version, build, ASAR hash, renderer anchors,
-and native binary constants before changing anything. An unknown upstream build
-is rejected by default rather than being partially patched. See
-[Compatibility](docs/COMPATIBILITY.md) for the recorded hash and test details.
+The patcher verifies the original OpenAI signature, bundle identity, Apple
+silicon architecture, version, build, ASAR hash, renderer anchors, and native
+binary constants before applying the patch. Unknown upstream builds are
+rejected. See [Compatibility](docs/COMPATIBILITY.md) for the recorded hash and
+the evidence available for this port.
 
 ## Requirements
 
@@ -89,43 +91,44 @@ is rejected by default rather than being partially patched. See
 - Xcode Command Line Tools
 - Go 1.26+
 - Node.js 22.12+ and npm
-- An Apple Development or Developer ID Application signing identity
+- An Apple Development or Developer ID Application signing identity for
+  reliable Appshots and Computer Use
 
 A team-backed signing identity is required for reliable Appshots and Computer
-Use permissions. Ad-hoc signing is intended only for diagnostics.
+Use permissions. An explicit ad-hoc installation can provide the subscription
+router with that limitation.
 
 ## Install
 
-Run one command. It downloads or updates the source, installs the locked build
-dependency, creates the independently signed app, and launches it:
+Install this fork from a local checkout of a commit you have reviewed. Replace
+`REVIEWED_COMMIT` below with that full commit SHA; the installer rejects a
+different revision or a dirty checkout. It does not download or pull source code.
 
 ```sh
-curl -fsSL https://raw.githubusercontent.com/b-nnett/codex-subscription-router/main/install.sh | /bin/bash
+git clone https://github.com/falksinke/codex-subscription-router.git
+cd codex-subscription-router
+git checkout --detach REVIEWED_COMMIT
+CODEX_SUBSCRIPTION_ROUTER_REVISION=REVIEWED_COMMIT bash install.sh
 ```
 
-The installer keeps its source checkout in
-`~/.codex-subscription-router/source`. On an existing installation it uses the
-same account state, creates a recoverable backup, and requires signing-team
-continuity so macOS privacy grants remain valid. It stops with a clear message
-instead of making a partial installation when a prerequisite or upstream
-compatibility check fails.
+The installer downloads only the locked npm build dependency, with install
+scripts disabled. It creates and launches a separately signed app. On an existing
+installation it uses the same account state, creates a recoverable backup, and
+requires signing-team continuity. Quit the router and its helper before updating;
+the installer never terminates a running session automatically.
 
 > [!TIP]
-> To inspect the installer before running it, open
-> [`install.sh`](install.sh) or download it without piping it into a shell.
+> Inspect [`install.sh`](install.sh) and the source before choosing a revision.
+> Do not pipe a script from a mutable branch into a shell.
 
 ### Install via prompt
 
-> Install Codex Subscription Router from `https://github.com/b-nnett/codex-subscription-router` on this Mac using the repository's supported one-command installer, without modifying the official ChatGPT app or deleting any existing router state. Verify the resulting app and Computer Use helper signatures, launch the app, and ask me only if a prerequisite or macOS permission requires interaction.
+> Review the source of `https://github.com/falksinke/codex-subscription-router`, pin the reviewed commit locally, and install that revision on this Mac. Keep the official ChatGPT app and existing router state intact. Verify source and resulting app signatures, and report signing or macOS permission limitations.
 
 ### Install from a clone
 
 ```sh
-git clone https://github.com/b-nnett/codex-subscription-router.git
-cd codex-subscription-router
-npm ci --ignore-scripts
-python3 scripts/patch_app.py
-open "$HOME/Applications/Codex Subscription Router.app"
+CODEX_SUBSCRIPTION_ROUTER_REVISION=REVIEWED_COMMIT bash install.sh
 ```
 
 This creates:
@@ -140,7 +143,7 @@ an Apple Development identity. Select a certificate explicitly when needed:
 
 ```sh
 CODEX_MUX_SIGNING_IDENTITY="Developer ID Application: Example Corp (TEAMID1234)" \
-  python3 scripts/patch_app.py
+  CODEX_SUBSCRIPTION_ROUTER_REVISION=REVIEWED_COMMIT bash install.sh
 ```
 
 Reuse the same Apple team for every rebuild. Changing teams changes the app's
@@ -148,10 +151,11 @@ designated requirement and can invalidate existing macOS privacy consent. The
 patcher refuses an unexpected team change unless you deliberately pass
 `--allow-signing-team-change`.
 
-For diagnostic builds without a certificate:
+For installation without an Apple signing certificate:
 
 ```sh
-python3 scripts/patch_app.py --allow-adhoc-signing
+CODEX_SUBSCRIPTION_ROUTER_REVISION=REVIEWED_COMMIT \
+  CODEX_SUBSCRIPTION_ROUTER_ALLOW_ADHOC_SIGNING=1 bash install.sh
 ```
 
 Appshots and Computer Use may not function with an ad-hoc signature.
@@ -223,7 +227,7 @@ patch. Update `/Applications/ChatGPT.app`, verify that the new build is listed
 as compatible, then rebuild:
 
 ```sh
-python3 scripts/patch_app.py --force
+CODEX_SUBSCRIPTION_ROUTER_REVISION=REVIEWED_COMMIT bash install.sh
 ```
 
 Quit Codex Subscription Router and its Computer Use helper first. Existing
@@ -241,17 +245,25 @@ helper and socket paths and are not relocatable or intended for redistribution.
 | `~/.codex` | Primary credentials, conversations, and cache |
 | `~/.codex-mux/state.json` | Account metadata and sticky thread ownership |
 | `~/.codex-mux/accounts/<id>/codex-home` | Isolated secondary account data |
-| `~/.codex-mux/control-token` | Token for the loopback-only control service |
+| `~/.codex-mux/control-token` | Private control token, read by Electron main |
+| `~/.codex-mux/control.sock` | Owner-only Unix control socket |
 | `~/.codex-mux/backups` | Recoverable app and helper backups |
 | `~/Library/Application Support/Codex Subscription Router` | Independent desktop profile |
 
-The control service binds only to `127.0.0.1` and protects private routes with a
-random 256-bit token. OAuth tokens stay inside their account's Codex home and
-are never returned by the control API. Account directories are owner-only.
+The control service uses an owner-only Unix socket inside the private state
+directory. Electron main accesses it through a restricted IPC bridge; the
+renderer receives neither the control token nor a network endpoint. The bridge
+accepts only approved account operations from the app's main frame. OAuth tokens
+stay inside their account's Codex home and are never returned by the control API.
+Account directories are owner-only.
 
 Plugin configuration is intentionally synchronized from the Primary account.
 Inline secrets inside shared MCP configuration are therefore copied to each
 isolated account home; the account homes are not separate secret boundaries.
+
+Automatic failover can resume a conversation under another connected account.
+Connect accounts whose workspace and data policies permit that behavior. The
+router does not enforce separation between personal and work subscriptions.
 
 See [SECURITY.md](SECURITY.md) before reporting a credential, signing, or local
 control-service issue.
@@ -268,9 +280,11 @@ The Go backend and injected renderer have no runtime third-party dependencies.
 `@electron/asar` is build-only. Deterministic UI preview routes are enabled only
 when `CODEX_MUX_UI_TESTS=1` is present at launch and remain token-authenticated.
 
-The signed-app test procedure is in [SMOKE-TEST.md](docs/SMOKE-TEST.md). The
-latest completed run is recorded in
-[E2E-REPORT-0.1.0.md](docs/E2E-REPORT-0.1.0.md).
+The signed-app test procedure is in [SMOKE-TEST.md](docs/SMOKE-TEST.md).
+[E2E-REPORT-0.1.0.md](docs/E2E-REPORT-0.1.0.md) records an upstream run on
+build 6396; it does not validate this fork's build 12246 port or private IPC
+transport. The existing TCP-based diagnostic scripts also need adaptation to
+the private socket before reuse.
 
 ## Known limitations
 
