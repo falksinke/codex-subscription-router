@@ -861,14 +861,17 @@ def patch_account_component(component: str) -> str:
     prelude = r'''
 function CodexMuxMenuSeparator() {
   return (0, m1.jsx)("div", {
-    className: "my-1 border-t border-token-border",
+    className: "w-full px-[var(--app-menu-separator-inset,var(--padding-row-x))] py-[var(--app-menu-separator-gutter,var(--spacing))]",
     role: "separator",
+    children: (0, m1.jsx)("div", {
+      className: "h-px w-full bg-border",
+    }),
   });
 }
 function CodexMuxUsageIcon(props) {
   return (0, m1.jsx)("span", {
     ...props,
-    className: `${props?.className || ""} flex size-4 items-center justify-center rounded-full border border-current text-[9px]`,
+    className: `${props?.className || ""} flex items-center justify-center rounded-full border border-current text-[9px]`,
     "aria-hidden": true,
     children: "%",
   });
@@ -884,18 +887,21 @@ function CodexMuxMenuItem({
   tone,
 }) {
   const handler = onSelect || onClick;
+  const iconClass = SubText ? "icon-sm" : "icon-xs";
   const content = (0, m1.jsxs)(m1.Fragment, {
     children: [
-      LeftIcon ? (0, m1.jsx)(LeftIcon, { className: "size-4 shrink-0" }) : null,
+      LeftIcon ? (0, m1.jsx)(LeftIcon, {
+        className: `${iconClass} shrink-0 opacity-75 group-focus:opacity-100 group-hover:opacity-100`,
+      }) : null,
       (0, m1.jsxs)("span", {
         className: "flex min-w-0 flex-1 flex-col text-left",
         children: [
           (0, m1.jsx)("span", {
-            className: tone === "danger" ? "text-danger" : "text-token-text-primary",
+            className: `min-w-0 truncate ${tone === "danger" ? "text-danger" : "text-default"}`,
             children,
           }),
           SubText ? (0, m1.jsx)("span", {
-            className: "truncate text-xs text-token-text-secondary",
+            className: "min-w-0 truncate text-xs leading-dense text-tertiary",
             children: SubText,
           }) : null,
         ],
@@ -903,15 +909,16 @@ function CodexMuxMenuItem({
       rightIcon || null,
     ],
   });
+  const rowClass = `outline-hidden flex min-h-[var(--app-menu-item-height,0px)] w-full shrink-0 items-center justify-center gap-[var(--spacing-menu-item-content,calc(var(--spacing)*1.5))] rounded-xl p-[var(--app-menu-item-padding,var(--padding-row-y)_var(--padding-row-x))] text-(length:--app-menu-item-font-size,var(--text-sm)) leading-(--app-menu-item-line-height,var(--text-sm--line-height)) ${className}`;
   if (!handler) {
     return (0, m1.jsx)("div", {
-      className: `flex min-h-10 items-center gap-2 rounded-lg px-2 py-1.5 ${className}`,
+      className: rowClass,
       children: content,
     });
   }
   return (0, m1.jsx)("button", {
     type: "button",
-    className: `flex min-h-10 w-full items-center gap-2 rounded-lg px-2 py-1.5 hover:bg-token-foreground/5 ${className}`,
+    className: `${rowClass} group cursor-interaction hover:bg-primary-ghost-hover focus:bg-primary-ghost-hover`,
     onClick: handler,
     children: content,
   });

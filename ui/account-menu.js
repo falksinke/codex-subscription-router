@@ -380,7 +380,7 @@ function CodexMuxAccountMenu() {
             ? "1 connected subscription"
             : `${connected.length} connected subscriptions`,
         rightIcon: (0, e7.jsx)("span", {
-          className: "text-token-description-foreground tabular-nums",
+          className: "shrink-0 text-codex-description tabular-nums",
           children: loading
             ? "…"
             : hasCompleteUsage
@@ -417,7 +417,7 @@ function CodexMuxAccountMenu() {
             : account.planType || "ChatGPT subscription",
           className: "group",
           rightIcon: (0, e7.jsx)("span", {
-            className: "text-token-description-foreground tabular-nums",
+            className: "shrink-0 text-codex-description tabular-nums",
             children: remaining == null ? "–" : `${Math.round(remaining)}%`,
           }),
           children: account.planLabel
