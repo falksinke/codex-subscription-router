@@ -355,7 +355,14 @@ function CodexMuxAccountMenu() {
         if (destination.protocol !== "https:" || !trustedHost) {
           throw new Error("untrusted verification URL");
         }
-        window.open(destination.href, "_blank", "noopener,noreferrer");
+        const opened = codexMuxOpenExternal({
+          href: destination.href,
+          initiator: "open_in_browser_bridge",
+          openTarget: "external-browser",
+        });
+        if (opened === false) {
+          throw new Error("verification page dispatch was rejected");
+        }
       } catch {
         setError("The sign-in verification page could not be opened safely.");
       }

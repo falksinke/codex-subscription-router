@@ -848,6 +848,7 @@ def patch_account_component(component: str) -> str:
         ("_H", "CodexMuxMenuItem", 5),
         ("S2", "CodexMuxUsageIcon", 2),
         ("jLa", "codexMuxResolveImageUrl", 1),
+        ("codexMuxOpenExternal", "AN", 1),
     ):
         pattern = re.compile(
             rf"(?<![A-Za-z0-9_$]){re.escape(original)}(?![A-Za-z0-9_$])"
@@ -960,6 +961,34 @@ def patch_renderer(extracted: Path) -> None:
     if "function CodexMuxAccountMenu(" in bundle:
         raise RuntimeError("source app already contains the Codex multiplexer menu")
 
+    external_open_helper_anchor = (
+        "function AN({clickModifiers:e,disposition:t,externalReturnSource:n,href:r,"
+        "hostId:i,initiator:a,openTarget:o,openTargetIntent:s,originHostId:c,"
+        "presentationIntent:l,source:u=`manual`,targetChromeTabId:d,"
+        "useExternalBrowser:f}){return Di(r)?(Id.dispatchMessage(`open-in-browser`,"
+        "{...e==null?{}:{clickModifiers:e},disposition:t,externalReturnSource:n,"
+        "hostId:i,initiator:a,openTarget:o,openTargetIntent:s,originHostId:c,"
+        "presentationIntent:l,source:u,targetChromeTabId:d,useExternalBrowser:f,"
+        "url:Lo(r)}),!0):!1}"
+    )
+    external_open_source_call_anchor = (
+        "n?.stage===`gateway`&&n.authUrl!=null){AN({href:n.authUrl,"
+        "initiator:`open_in_browser_bridge`,openTarget:`external-browser`});return}"
+    )
+    component_anchor = "function yro(e){let t=(0,xro.c)(40)"
+    for anchor, description in (
+        (external_open_helper_anchor, "native external-browser helper"),
+        (external_open_source_call_anchor, "native OAuth external-browser call"),
+        (component_anchor, "native profile menu component"),
+    ):
+        count = bundle.count(anchor)
+        if count != 1:
+            raise RuntimeError(f"expected 1 {description} anchor(s), found {count}")
+    if bundle.index(external_open_helper_anchor) >= bundle.index(component_anchor):
+        raise RuntimeError(
+            "native external-browser helper must be defined before menu injection"
+        )
+
     # This independently signed copy is rebuilt from reviewed source; it cannot
     # apply official in-app updates. Suppress only the updater presentation,
     # leaving the mandatory startup requirements and version checks intact.
@@ -973,7 +1002,6 @@ def patch_renderer(extracted: Path) -> None:
     component = patch_account_component(
         (PROJECT_ROOT / "ui" / "account-menu.js").read_text(encoding="utf-8")
     )
-    component_anchor = "function yro(e){let t=(0,xro.c)(40)"
     bundle = replace_anchor(
         bundle,
         component_anchor,
