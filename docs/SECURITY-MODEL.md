@@ -65,6 +65,11 @@ ASAR digest. Native modules, the Computer Use helper, Node runtime, mux, and
 final app are signed with the selected local identity and verified before
 replacement. Certificate-backed builds use one Apple team. Official OpenAI
 application-group and keychain entitlements are removed from modified callers.
+The re-signed desktop executable also drops the official app's
+`com.apple.developer.aps-environment` entitlement. This local identity has no
+matching OpenAI push-notification provisioning profile, so retaining that
+restricted capability can make macOS reject launch. Apple push notifications
+are unavailable in the local copy; ordinary Electron permissions are retained.
 
 The native helper's caller allowlist is patched to the selected team and the
 independent desktop bundle ID. This is required for the helper's peer checks;

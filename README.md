@@ -159,6 +159,9 @@ CODEX_SUBSCRIPTION_ROUTER_REVISION=REVIEWED_COMMIT \
 ```
 
 Appshots and Computer Use may not function with an ad-hoc signature.
+Apple push notifications are unavailable in this local copy: the patcher
+removes the official app's provisioning-dependent APNs entitlement when
+re-signing the desktop executable.
 
 ## Grant macOS permissions
 

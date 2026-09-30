@@ -35,6 +35,13 @@ socket between Electron's main process and `codex-mux`. The renderer does not
 receive the socket path or bearer token, and the patch does not add a TCP
 control endpoint or relax the renderer's Content Security Policy.
 
+The independent desktop signature preserves the ordinary Electron runtime,
+automation, device, file, network, and personal-information entitlements. It
+removes OpenAI's `com.apple.developer.aps-environment` entitlement because the
+independent bundle cannot claim OpenAI's APNs provisioning. Push notifications
+from the official OpenAI app are therefore outside this port's compatibility
+boundary.
+
 The current port modifies exact tested bundles for the desktop bootstrap,
 main process, main-window preload, application network startup, account menu,
 profile, usage modal, plugin settings, and local-thread summary. Every anchor
@@ -47,7 +54,8 @@ and its modified Computer Use helper one consistent signing team. With the
 explicit `--allow-adhoc-signing` option, the core account router can be built,
 but Appshots and Computer Use may be unavailable because an ad-hoc signature
 cannot satisfy the original team-based trust and privacy grants. The patcher
-does not weaken those peer checks or copy OpenAI provisioning profiles.
+does not weaken those peer checks, retain the OpenAI APNs entitlement, or copy
+OpenAI provisioning profiles.
 
 Runtime validation of build `12246` is separate from this compatibility claim.
 The current port was produced by source inspection and exact-anchor checks; a

@@ -430,6 +430,9 @@ TEAM_SCOPED_ENTITLEMENTS = (
     "com.apple.security.application-groups",
     "keychain-access-groups",
 )
+OPENAI_PROVISIONED_DESKTOP_ENTITLEMENTS = (
+    "com.apple.developer.aps-environment",
+)
 
 
 def sanitized_runtime_entitlements(executable: Path) -> dict[str, object] | None:
@@ -451,6 +454,16 @@ def sanitized_runtime_entitlements(executable: Path) -> dict[str, object] | None
     if not isinstance(entitlements, dict):
         raise RuntimeError(f"invalid signing entitlements on {executable}")
     for key in TEAM_SCOPED_ENTITLEMENTS:
+        entitlements.pop(key, None)
+    return entitlements or None
+
+
+def independent_desktop_entitlements(executable: Path) -> dict[str, object] | None:
+    """Keep Electron capabilities without claiming OpenAI's APNs provisioning."""
+    entitlements = sanitized_runtime_entitlements(executable)
+    if entitlements is None:
+        return None
+    for key in OPENAI_PROVISIONED_DESKTOP_ENTITLEMENTS:
         entitlements.pop(key, None)
     return entitlements or None
 
@@ -615,10 +628,12 @@ def sign_computer_use_code(
     for executable_name in ("node", "node_repl"):
         executable = resources / "cua_node" / "bin" / executable_name
         sign_runtime_executable(executable, identity)
+    desktop_executable = app / "Contents" / "MacOS" / "ChatGPT"
     sign_runtime_executable(
-        app / "Contents" / "MacOS" / "ChatGPT",
+        desktop_executable,
         identity,
         OPENAI_DESKTOP_CODE_IDENTIFIER,
+        entitlements=independent_desktop_entitlements(desktop_executable),
         runtime=False,
     )
 
