@@ -80,8 +80,8 @@ it does not bypass macOS Accessibility or Screen Recording consent.
 The app requires an Apple Development or Developer ID Application certificate.
 Its protected Electron helpers and modified framework must have the same
 authenticated Team ID for library validation. Ad-hoc signing is unsupported;
-the patcher does not disable library validation or hardened runtime to make it
-work. Each modified companion keeps its own ordinary entitlements and runtime
+the protected Electron companions retain their existing library validation and
+hardened runtime. Each modified companion keeps its own ordinary entitlements and runtime
 version. Service's existing upstream library-validation exception is left on
 that unchanged helper and is never copied to protected helpers. The Computer
 Use helper's caller and macOS consent checks remain in place.
