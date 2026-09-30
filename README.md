@@ -101,8 +101,9 @@ For personal use, start with [Xcode's free Personal Team development
 workflow](https://developer.apple.com/help/account/basics/about-your-developer-account).
 A paid Developer ID membership is not the only certificate route. This port has
 been signed, installed, and opened with a free Personal Team certificate on
-the previous supported build `12246`. The `12404` port retains that signing
-path. Additional-account switching and failover have not been exercised.
+build `12404`. The profile menu displayed the connected Primary subscription
+and compact subscription rows. Secondary sign-in completion, account switching
+and failover have not been exercised.
 
 ## Install
 

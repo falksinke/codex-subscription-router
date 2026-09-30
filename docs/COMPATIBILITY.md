@@ -62,7 +62,7 @@ A valid, locally available Apple Development or Developer ID Application
 identity is required. Apple Development includes certificates managed by
 Xcode's free Personal Team, so a paid Apple Developer Program membership is not
 inherently required. A free Personal Team certificate successfully signed,
-installed, and launched the prior build `12246` through native main and renderer
+installed, and launched build `12404` through native main and renderer
 startup after the per-target entitlement, hardened-runtime, Apple-chain, team,
 and deep-strict checks passed. After the socket-routing correction, the app
 opened its normal window and its profile menu displayed the connected Primary
@@ -81,9 +81,11 @@ Apple certificate-chain anchor. The patcher does not weaken peer checks,
 disable library validation, retain OpenAI team grants or APNs provisioning, or
 copy OpenAI provisioning profiles.
 
-The bounded installation check established normal startup and a connected
-Primary subscription on build `12246`. It did not exercise additional-account
-login, switching, failover, Computer Use permissions, or general application
-behavior. Build `12404` has been ported by exact source inspection but has not
-yet been patched, signed, installed, launched, or exercised at runtime. Unit and
+The build `12404` installer completed its source, per-target metadata,
+Apple-anchor/team and deep-strict signature checks before replacement. A bounded
+window and profile-menu observation established normal startup, a connected
+Primary subscription, compact subscription rows and no copied-app update notice.
+The external-browser sign-in route received static independent review; actual
+secondary login completion was not exercised. Switching, failover, Computer Use
+permissions and general application behavior remain untested. Unit and
 end-to-end suites, typechecks and linters were not run.
