@@ -29,7 +29,8 @@ binaries or a prebuilt application.
 - **Automatic failover.** A depleted thread continues through another account
   with quota; if the whole pool is empty, the app shows one combined alert.
 - **Native account management.** The existing profile menu shows pooled usage,
-  profile photos, plan names, masked emails, and device-code sign-in.
+  profile photos, plan names, masked emails, and device-code sign-in in the
+  external browser.
 - **Account-aware settings.** Profile statistics can be viewed together or per
   subscription, while the Plugins page can switch Apps and MCP connections
   between accounts.
@@ -73,8 +74,8 @@ Codex Subscription Router currently targets:
 | Component | Supported value |
 | --- | --- |
 | Platform | macOS on Apple silicon |
-| Official Codex app version | `26.928.20755` |
-| Official bundle build | `12246` |
+| Official Codex app version | `26.928.21956` |
+| Official bundle build | `12404` |
 | Go | 1.26 or newer |
 | Node.js | 22.12 or newer |
 
@@ -100,9 +101,8 @@ For personal use, start with [Xcode's free Personal Team development
 workflow](https://developer.apple.com/help/account/basics/about-your-developer-account).
 A paid Developer ID membership is not the only certificate route. This port has
 been signed, installed, and opened with a free Personal Team certificate on
-build `12246`. The profile menu displayed the connected Primary subscription
-and **Add another subscription**. Additional-account switching and failover
-have not been exercised.
+the previous supported build `12246`. The `12404` port retains that signing
+path. Additional-account switching and failover have not been exercised.
 
 ## Install
 

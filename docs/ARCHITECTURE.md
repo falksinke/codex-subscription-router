@@ -46,6 +46,10 @@ Each isolated account forces file-backed CLI and MCP OAuth credentials.
 The patcher extracts `app.asar`, verifies exact upstream anchors, inserts the
 account UI, disables self-update, and repacks the archive with an updated
 integrity hash. The app receives a separate Chromium profile and URL scheme.
+The account rows reuse native menu sizing tokens. Secondary device-code sign-in
+uses the official browser dispatcher with an explicit external-browser target
+and an HTTPS allowlist for `chatgpt.com` and `auth.openai.com`. The copied app
+hides its self-update notice; official updates require a reviewed port and rebuild.
 
 The modified Computer Use service, Node runtime, callers, protected Electron
 companions, libaperitif and Codex Framework use one selected Apple identity.
