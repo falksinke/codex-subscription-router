@@ -22,8 +22,10 @@ binaries or a prebuilt application.
 
 ## Highlights
 
-- **Quota-aware routing.** New chats favour weekly allowance that will expire
-  sooner, with a bounded boost for accounts holding banked usage resets.
+- **Optional manual selection.** Choose Automatic or a subscription in the
+  profile menu for new chats. The choice persists across restarts.
+- **Quota-aware routing.** Automatic new chats favour weekly allowance that
+  will expire sooner, with a bounded boost for banked usage resets.
 - **Sticky conversations.** Once a thread is assigned, every follow-up returns
   to the same subscription unless that subscription is depleted.
 - **Automatic failover.** A depleted thread continues through another account
@@ -197,15 +199,25 @@ request Automation access the first time Computer Use controls another app.
 While the code is visible, clicking away does not dismiss the menu. Clicking
 the code copies it and opens the verification page.
 
-The profile menu displays combined weekly usage followed by one row per
-subscription. Email addresses remain masked until hovered. The final row always
-starts another sign-in.
+The profile menu displays a plan-weighted estimate of combined weekly usage,
+followed by Automatic and one selectable row per connected subscription. Pro
+20x and Pro 5x contribute in a 4:1 ratio; unknown plan sizes leave the combined
+estimate unavailable while individual percentages remain visible. This is an
+estimate based on plan multipliers, rather than an exact shared token allowance.
+Email addresses remain masked until hovered. The final row starts another sign-in.
+
+Choose **Automatic** to let the router select a subscription, or select an
+account row to use it for new chats. The selection does not move existing chats.
+If the selected account is unavailable or depleted when starting a new chat,
+choose another account or Automatic. During an existing chat, normal automatic
+failover continues through another subscription when its owner runs out.
 
 ## Routing behavior
 
 | Situation | Behaviour |
 | --- | --- |
-| New chat | Assigned by quota-at-risk, banked resets, and short-window pressure |
+| New chat, Automatic | Assigned by quota-at-risk, banked resets, and short-window pressure |
+| New chat, selected account | Starts on that subscription; reports an error if unavailable or depleted |
 | Follow-up | Sent to the thread's persisted account owner |
 | Owner depleted | Continued through another account with capacity |
 | Every account depleted | Combined quota alert with the next known reset |

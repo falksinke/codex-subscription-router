@@ -21,7 +21,12 @@ The desktop app opens one JSON-RPC app-server connection to the multiplexer.
 The multiplexer starts one real app-server child for every enabled account,
 each with its own `CODEX_HOME` and `CODEX_SQLITE_HOME`.
 
-New threads are assigned using a quota-urgency score: weekly percentage
+The private routing state stores an optional selected account for new threads.
+A manual choice must be enabled, connected and have capacity when the thread
+starts; an unavailable choice returns an explicit error. Changing this setting
+does not reassign existing threads or change their automatic failover behavior.
+
+In Automatic mode, new threads use a quota-urgency score: weekly percentage
 remaining divided by the hours until that account resets. Banked usage resets
 add a capped bonus, while short-window usage, existing pinned-thread count, and
 stable account order break close results. Reset-credit metadata is fetched in
@@ -74,6 +79,11 @@ over `~/.codex-mux/control.sock`. The state directory is owner-only and the
 socket is mode `0600`; there is no production TCP listener. Electron main reads
 the random 256-bit token from a private file and attaches it to socket requests.
 The token never enters the renderer or its event URLs.
+
+The authenticated `/routing` GET/PATCH endpoint reads or persists the new-chat
+account choice. `null` selects Automatic; an account identifier selects that
+subscription. The main bridge validates the exact method, fields and identifier
+before forwarding it. Routing updates use the existing event stream.
 
 The service exposes account metadata, aggregated usage and profile data, thread
 ownership, login/logout actions, and an authenticated SSE event stream; it never
