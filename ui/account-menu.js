@@ -232,6 +232,13 @@ function CodexMuxResetAccountSelector({
 function CodexMuxAccountMenu() {
   const modalScope = Lo(Q);
   const [accounts, setAccounts] = kXc.useState([]);
+  const [routingAccountId, setRoutingAccountId] = kXc.useState(null);
+  const [routingLoaded, setRoutingLoaded] = kXc.useState(false);
+  const [routingPending, setRoutingPending] = kXc.useState(false);
+  const [routingPendingAccountId, setRoutingPendingAccountId] =
+    kXc.useState(null);
+  const routingPendingRef = kXc.useRef(false);
+  const [routingError, setRoutingError] = kXc.useState("");
   const [loading, setLoading] = kXc.useState(true);
   const [busy, setBusy] = kXc.useState(false);
   const [error, setError] = kXc.useState("");
@@ -247,6 +254,8 @@ function CodexMuxAccountMenu() {
         (account) => account.connected && account.enabled,
       );
       setAccounts(nextAccounts);
+      setRoutingAccountId(result.routing.accountId);
+      setRoutingLoaded(true);
       setError("");
       if (nextAccounts.some((account) => account.connected)) setLoading(false);
     } catch (requestError) {
@@ -267,7 +276,12 @@ function CodexMuxAccountMenu() {
           codexMuxLoginActive = false;
           setLogin(null);
         }
-        if (payload.type === "account-updated") refresh();
+        if (
+          payload.type === "account-updated" ||
+          payload.type === "routing-updated"
+        ) {
+          refresh();
+        }
       });
     } catch (subscriptionError) {
       setError(subscriptionError.message);
@@ -300,16 +314,54 @@ function CodexMuxAccountMenu() {
   const connected = accounts.filter(
     (account) => account.connected && account.enabled,
   );
-  const weeklyWindows = connected.map((account) =>
-    codexMuxWeeklyWindow(account.rateLimits),
-  );
+  const weightedUsage = connected.map((account) => ({
+    remaining: codexMuxRemainingPercent(
+      codexMuxWeeklyWindow(account.rateLimits),
+    ),
+    weight: codexMuxPlanWeight(account.planType),
+  }));
   const hasCompleteUsage =
-    connected.length > 0 && weeklyWindows.every((weekly) => weekly != null);
-  const totalRemaining = weeklyWindows.reduce(
-    (total, weekly) =>
-      total + (weekly == null ? 0 : Math.max(0, 100 - weekly.usedPercent)),
+    connected.length > 0 &&
+    weightedUsage.every(
+      ({ remaining, weight }) => remaining != null && weight != null,
+    );
+  const totalWeight = weightedUsage.reduce(
+    (total, { weight }) => total + (weight || 0),
     0,
   );
+  const totalRemaining = hasCompleteUsage
+    ? weightedUsage.reduce(
+        (total, { remaining, weight }) => total + remaining * weight,
+        0,
+      ) / totalWeight
+    : null;
+
+  async function selectRoutingAccount(accountId) {
+    if (
+      routingPendingRef.current ||
+      (routingLoaded && accountId === routingAccountId)
+    ) {
+      return;
+    }
+    routingPendingRef.current = true;
+    setRoutingPending(true);
+    setRoutingPendingAccountId(accountId);
+    setRoutingError("");
+    try {
+      const result = await codexMuxRequest("/routing", {
+        method: "PATCH",
+        body: { accountId },
+      });
+      setRoutingAccountId(result.routing.accountId);
+      setRoutingLoaded(true);
+    } catch (requestError) {
+      setRoutingError(requestError.message);
+    } finally {
+      routingPendingRef.current = false;
+      setRoutingPending(false);
+      setRoutingPendingAccountId(null);
+    }
+  }
 
   async function addSubscription(event) {
     event.preventDefault();
@@ -383,9 +435,11 @@ function CodexMuxAccountMenu() {
         LeftIcon: S2,
         SubText: loading
           ? "Connecting subscriptions…"
-          : connected.length === 1
-            ? "1 connected subscription"
-            : `${connected.length} connected subscriptions`,
+          : !hasCompleteUsage
+            ? "Estimate unavailable for this mix of plans"
+            : connected.length === 1
+              ? "Estimated from 1 subscription by plan size"
+              : `Estimated from ${connected.length} subscriptions by plan size`,
         rightIcon: (0, e7.jsx)("span", {
           className: "shrink-0 text-codex-description tabular-nums",
           children: loading
@@ -395,20 +449,45 @@ function CodexMuxAccountMenu() {
               : "–",
         }),
         onSelect: () => BW(modalScope, CodexMuxUsageModal, {}),
-        children: "Usage remaining",
+        children: "Estimated usage remaining",
       },
       "codex-mux-total",
     ),
   );
-  if (connected.length > 0) {
-    rows.push(
-      (0, e7.jsx)(CH.Separator, {}, "codex-mux-accounts-separator"),
-    );
-  }
+  rows.push(
+    (0, e7.jsx)(CH.Separator, {}, "codex-mux-accounts-separator"),
+  );
+  const automaticSelected = routingLoaded && routingAccountId == null;
+  rows.push(
+    (0, e7.jsx)(
+      _H,
+      {
+        LeftIcon: CodexMuxAutomaticIcon,
+        SubText: automaticSelected
+          ? "Selected for new chats"
+          : "For new chats · chooses by available usage",
+        rightIcon: routingPending && routingPendingAccountId == null
+          ? (0, e7.jsx)("span", {
+              className: "shrink-0 text-codex-description",
+              children: "Saving…",
+            })
+          : automaticSelected
+            ? (0, e7.jsx)(CodexMuxCheckIcon, {
+                className: "size-4 shrink-0 text-codex-description",
+              })
+            : null,
+        onSelect: () => selectRoutingAccount(null),
+        children: "Automatic",
+      },
+      "codex-mux-routing-automatic",
+    ),
+  );
 
   for (const account of connected) {
     const weekly = codexMuxWeeklyWindow(account.rateLimits);
-    const remaining = weekly == null ? null : Math.max(0, 100 - weekly.usedPercent);
+    const remaining = codexMuxRemainingPercent(weekly);
+    const selected = routingLoaded && account.id === routingAccountId;
+    const pending = routingPending && routingPendingAccountId === account.id;
     rows.push(
       (0, e7.jsx)(
         _H,
@@ -419,19 +498,61 @@ function CodexMuxAccountMenu() {
               imageUrl: account.profileImageUrl,
               label: account.label,
             }),
-          SubText: account.email
-            ? (0, e7.jsx)(CodexMuxMaskedEmail, { email: account.email })
-            : account.planType || "ChatGPT subscription",
+          SubText: selected
+            ? (0, e7.jsxs)(e7.Fragment, {
+                children: [
+                  "Selected for new chats · ",
+                  account.email
+                    ? (0, e7.jsx)(CodexMuxMaskedEmail, { email: account.email })
+                    : account.planType || "ChatGPT subscription",
+                ],
+              })
+            : account.email
+              ? (0, e7.jsx)(CodexMuxMaskedEmail, { email: account.email })
+              : account.planType || "ChatGPT subscription",
           className: "group",
-          rightIcon: (0, e7.jsx)("span", {
-            className: "shrink-0 text-codex-description tabular-nums",
-            children: remaining == null ? "–" : `${Math.round(remaining)}%`,
+          rightIcon: (0, e7.jsxs)("span", {
+            className:
+              "flex shrink-0 items-center gap-1.5 text-codex-description tabular-nums",
+            children: [
+              pending ? "Saving…" : remaining == null ? "–" : `${Math.round(remaining)}%`,
+              selected
+                ? (0, e7.jsx)(CodexMuxCheckIcon, { className: "size-4" })
+                : null,
+            ],
           }),
+          onSelect: () => selectRoutingAccount(account.id),
           children: account.planLabel
             ? `${account.label} · ${account.planLabel}`
             : account.label,
         },
         `codex-mux-account-${account.id}`,
+      ),
+    );
+  }
+
+  if (
+    routingLoaded &&
+    routingAccountId != null &&
+    !connected.some((account) => account.id === routingAccountId)
+  ) {
+    const unavailable = accounts.find(
+      (account) => account.id === routingAccountId,
+    );
+    rows.push(
+      (0, e7.jsx)(
+        _H,
+        {
+          LeftIcon: CodexMuxAutomaticIcon,
+          SubText: "Selected for new chats · Choose Automatic to reset",
+          rightIcon: (0, e7.jsx)(CodexMuxCheckIcon, {
+            className: "size-4 shrink-0 text-codex-description",
+          }),
+          children: unavailable
+            ? `${unavailable.label} · Unavailable`
+            : "Selected subscription unavailable",
+        },
+        "codex-mux-routing-unavailable",
       ),
     );
   }
@@ -472,6 +593,21 @@ function CodexMuxAccountMenu() {
     );
   }
 
+  if (routingError) {
+    rows.push(
+      (0, e7.jsx)(
+        _H,
+        {
+          LeftIcon: S2,
+          SubText: routingError,
+          tone: "danger",
+          children: "New chat subscription unchanged",
+        },
+        "codex-mux-routing-error",
+      ),
+    );
+  }
+
   if (!loading) {
     rows.push(
       (0, e7.jsx)(
@@ -498,15 +634,68 @@ function codexMuxWeeklyWindow(rateLimits) {
   return windows.at(-1) || null;
 }
 
+function codexMuxClampPercent(value) {
+  if (typeof value !== "number" || !Number.isFinite(value)) return null;
+  return Math.min(100, Math.max(0, value));
+}
+
+function codexMuxRemainingPercent(window) {
+  const usedPercent = codexMuxClampPercent(window?.usedPercent);
+  return usedPercent == null ? null : 100 - usedPercent;
+}
+
+function codexMuxPlanWeight(planType) {
+  if (planType === "pro") return 20;
+  if (planType === "prolite") return 5;
+  return null;
+}
+
 function codexMuxUsageWindows(rateLimits) {
   return [rateLimits?.primary, rateLimits?.secondary]
     .filter(Boolean)
-    .map((window) => ({
-      usedPercent: window.usedPercent,
-      remainingPercent: Math.max(0, 100 - window.usedPercent),
-      windowMinutes: window.windowDurationMins || 0,
-      resetsAt: window.resetsAt ?? null,
-    }));
+    .map((window) => {
+      const usedPercent = codexMuxClampPercent(window.usedPercent);
+      if (usedPercent == null) return null;
+      return {
+        usedPercent,
+        remainingPercent: 100 - usedPercent,
+        windowMinutes: window.windowDurationMins || 0,
+        resetsAt: window.resetsAt ?? null,
+      };
+    })
+    .filter(Boolean);
+}
+
+function CodexMuxAutomaticIcon(props) {
+  return (0, e7.jsx)("svg", {
+    viewBox: "0 0 20 20",
+    fill: "none",
+    "aria-hidden": true,
+    ...props,
+    children: (0, e7.jsx)("path", {
+      d: "M4.25 6.5h8.5m0 0-2.5-2.5m2.5 2.5-2.5 2.5m5.5 4.5h-8.5m0 0 2.5 2.5m-2.5-2.5 2.5-2.5",
+      stroke: "currentColor",
+      strokeWidth: 1.5,
+      strokeLinecap: "round",
+      strokeLinejoin: "round",
+    }),
+  });
+}
+
+function CodexMuxCheckIcon(props) {
+  return (0, e7.jsx)("svg", {
+    viewBox: "0 0 20 20",
+    fill: "none",
+    "aria-hidden": true,
+    ...props,
+    children: (0, e7.jsx)("path", {
+      d: "m4.75 10.25 3.25 3 7.25-7",
+      stroke: "currentColor",
+      strokeWidth: 1.75,
+      strokeLinecap: "round",
+      strokeLinejoin: "round",
+    }),
+  });
 }
 
 function CodexMuxPlusIcon(props) {

@@ -840,13 +840,13 @@ def patch_account_component(component: str) -> str:
         expected=2,
     )
     for original, replacement, expected in (
-        ("e7", "o$", 55),
-        ("kXc", "$oo", 26),
+        ("e7", "o$", 69),
+        ("kXc", "$oo", 32),
         ("QLs", "QAi", 1),
         ("BW", "ff", 1),
         ("lt", "to", 1),
-        ("_H", "CodexMuxMenuItem", 5),
-        ("S2", "CodexMuxUsageIcon", 2),
+        ("_H", "CodexMuxMenuItem", 8),
+        ("S2", "CodexMuxUsageIcon", 3),
         ("jLa", "codexMuxResolveImageUrl", 1),
         ("codexMuxOpenExternal", "eA", 1),
     ):
