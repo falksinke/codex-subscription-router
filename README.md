@@ -99,7 +99,10 @@ ad-hoc signatures cannot satisfy that library-validation requirement.
 For personal use, start with [Xcode's free Personal Team development
 workflow](https://developer.apple.com/help/account/basics/about-your-developer-account).
 A paid Developer ID membership is not the only certificate route. This port has
-not yet been validated with a free Personal Team certificate.
+been signed, installed, and opened with a free Personal Team certificate on
+build `12246`. The profile menu displayed the connected Primary subscription
+and **Add another subscription**. Additional-account switching and failover
+have not been exercised.
 
 ## Install
 

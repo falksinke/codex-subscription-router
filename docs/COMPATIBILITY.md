@@ -64,9 +64,10 @@ Xcode's free Personal Team, so a paid Apple Developer Program membership is not
 inherently required. A free Personal Team certificate has successfully signed,
 installed, and launched this exact build through native main and renderer
 startup after the per-target entitlement, hardened-runtime, Apple-chain, team,
-and deep-strict checks passed. Usable startup and subscription switching remain
-unverified because that launch encountered the socket-routing collision
-addressed by this source change. Ad-hoc signing is unsupported because it
+and deep-strict checks passed. After the socket-routing correction, the app
+opened its normal window and its profile menu displayed the connected Primary
+subscription and **Add another subscription**. Additional-account switching
+and failover remain untested. Ad-hoc signing is unsupported because it
 cannot satisfy the protected Electron helpers' library validation.
 
 After updating the framework integrity digest, the patcher signs
@@ -80,7 +81,7 @@ Apple certificate-chain anchor. The patcher does not weaken peer checks,
 disable library validation, retain OpenAI team grants or APNs provisioning, or
 copy OpenAI provisioning profiles.
 
-Runtime validation of build `12246` is separate from this compatibility claim.
-The current port was produced by source inspection and exact-anchor checks; a
-successful install and focused runtime exercise are still required before the
-build can be described as validated.
+The bounded installation check established normal startup and a connected
+Primary subscription on build `12246`. It did not exercise additional-account
+login, switching, failover, Computer Use permissions, or general application
+behavior. Unit and end-to-end suites, typechecks and linters were not run.

@@ -9,10 +9,11 @@ requires the same Apple signing identity and designated requirement. The app
 requires a genuine Apple certificate to preserve its native library validation.
 
 Codex Subscription Router leaves the copied `CodexCLI.app` executable in place.
-At Electron's bundled local app-server launch, it substitutes a small Go
-multiplexer at `Contents/Resources/codex-mux`. `CODEX_MUX_REAL_CODEX` identifies
-the official executable for account children, while `CODEX_CLI_PATH` continues
-to point to the official binary for other desktop operations.
+At Electron's normal bundled local desktop connection, it substitutes a small
+Go multiplexer at `Contents/Resources/codex-mux`. The temporary startup-policy
+connection uses the official CLI directly. `CODEX_MUX_REAL_CODEX` identifies
+the official executable for account children. Configured CLI overrides bypass
+the multiplexer, including overrides that point to the bundled executable.
 
 ## Request routing
 
