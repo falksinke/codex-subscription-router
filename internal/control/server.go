@@ -315,9 +315,6 @@ func (s *Server) events(response http.ResponseWriter, request *http.Request) {
 
 func (s *Server) authorized(request *http.Request) bool {
 	provided := request.Header.Get("X-Codex-Mux-Token")
-	if provided == "" {
-		provided = request.URL.Query().Get("token")
-	}
 	return len(provided) == len(s.token) && subtle.ConstantTimeCompare([]byte(provided), []byte(s.token)) == 1
 }
 

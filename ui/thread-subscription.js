@@ -1,6 +1,3 @@
-const CODEX_MUX_THREAD_API = "http://127.0.0.1:__CODEX_MUX_CONTROL_PORT__/v1";
-const CODEX_MUX_THREAD_TOKEN = "__CODEX_MUX_CONTROL_TOKEN__";
-
 function CodexMuxThreadSubscription() {
   const route = $n(sr);
   const threadId =
@@ -18,12 +15,13 @@ function CodexMuxThreadSubscription() {
 
     const refresh = async () => {
       try {
-        const response = await fetch(
-          `${CODEX_MUX_THREAD_API}/thread-account?threadId=${encodeURIComponent(threadId)}`,
-          { headers: { "X-Codex-Mux-Token": CODEX_MUX_THREAD_TOKEN } },
+        const bridge = globalThis.codexMuxControl;
+        if (!bridge || typeof bridge.request !== "function") {
+          throw new Error("Subscription control is unavailable.");
+        }
+        const body = await bridge.request(
+          `/thread-account?threadId=${encodeURIComponent(threadId)}`,
         );
-        if (!response.ok) throw new Error(`Request failed (${response.status})`);
-        const body = await response.json();
         if (active) setAccount(body.account || null);
       } catch {
         if (active) setAccount(null);
@@ -31,12 +29,10 @@ function CodexMuxThreadSubscription() {
     };
 
     refresh();
-    const events = new EventSource(
-      `${CODEX_MUX_THREAD_API}/events?token=${encodeURIComponent(CODEX_MUX_THREAD_TOKEN)}`,
-    );
-    events.onmessage = (event) => {
-      try {
-        const payload = JSON.parse(event.data);
+    let unsubscribe = () => {};
+    const bridge = globalThis.codexMuxControl;
+    if (bridge && typeof bridge.subscribe === "function") {
+      unsubscribe = bridge.subscribe((payload) => {
         if (
           payload.type === "account-updated" ||
           (payload.type === "thread-failed-over" &&
@@ -44,15 +40,15 @@ function CodexMuxThreadSubscription() {
         ) {
           refresh();
         }
-      } catch {}
-    };
+      });
+    }
     const warmupTimer = setTimeout(refresh, 2_000);
     const timer = setInterval(refresh, 30_000);
     return () => {
       active = false;
       clearTimeout(warmupTimer);
       clearInterval(timer);
-      events.close();
+      unsubscribe();
     };
   }, [threadId]);
 

@@ -13,7 +13,6 @@ import (
 	"os/exec"
 	"os/signal"
 	"path/filepath"
-	"strconv"
 	"strings"
 	"syscall"
 	"time"
@@ -23,8 +22,6 @@ import (
 	"github.com/b-nnett/codex-subscription-router/internal/protocol"
 	"github.com/b-nnett/codex-subscription-router/internal/state"
 )
-
-const defaultControlPort = 48123
 
 func main() {
 	if err := run(); err != nil {
@@ -51,6 +48,10 @@ func run() error {
 	if root == "" {
 		root = filepath.Join(home, ".codex-mux")
 	}
+	root, err = secureStateRoot(root)
+	if err != nil {
+		return err
+	}
 	primaryCodexHome := os.Getenv("CODEX_HOME")
 	if primaryCodexHome == "" {
 		primaryCodexHome = filepath.Join(home, ".codex")
@@ -59,6 +60,15 @@ func run() error {
 	if err != nil {
 		return err
 	}
+	token, err := loadOrCreateToken(root)
+	if err != nil {
+		return err
+	}
+	listener, err := listenControlSocket(root)
+	if err != nil {
+		return err
+	}
+	defer listener.Close()
 
 	ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer cancel()
@@ -77,37 +87,22 @@ func run() error {
 	}
 	defer multiplexer.Close()
 
-	token, err := loadOrCreateToken(root)
-	if err != nil {
-		return err
-	}
-	port := defaultControlPort
-	if value := os.Getenv("CODEX_MUX_CONTROL_PORT"); value != "" {
-		if parsed, parseErr := strconv.Atoi(value); parseErr == nil && parsed > 0 && parsed <= 65535 {
-			port = parsed
+	controlServer := control.New(
+		listener.Addr().String(),
+		token,
+		multiplexer,
+		os.Getenv("CODEX_MUX_UI_TESTS") == "1",
+	)
+	go func() {
+		if serveErr := controlServer.Serve(listener); serveErr != nil && !errors.Is(serveErr, http.ErrServerClosed) {
+			fmt.Fprintf(os.Stderr, "codex-mux: control server: %v\n", serveErr)
 		}
-	}
-	listener, err := net.Listen("tcp", fmt.Sprintf("127.0.0.1:%d", port))
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "codex-mux: account UI unavailable: %v\n", err)
-	} else {
-		controlServer := control.New(
-			listener.Addr().String(),
-			token,
-			multiplexer,
-			os.Getenv("CODEX_MUX_UI_TESTS") == "1",
-		)
-		go func() {
-			if serveErr := controlServer.Serve(listener); serveErr != nil && !errors.Is(serveErr, http.ErrServerClosed) {
-				fmt.Fprintf(os.Stderr, "codex-mux: control server: %v\n", serveErr)
-			}
-		}()
-		defer func() {
-			shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), 2*time.Second)
-			defer shutdownCancel()
-			_ = controlServer.Shutdown(shutdownCtx)
-		}()
-	}
+	}()
+	defer func() {
+		shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), 2*time.Second)
+		defer shutdownCancel()
+		_ = controlServer.Shutdown(shutdownCtx)
+	}()
 
 	scanner := bufio.NewScanner(os.Stdin)
 	scanner.Buffer(make([]byte, 64*1024), 64*1024*1024)
@@ -171,11 +166,15 @@ func passthrough(realExecutable string, args []string) error {
 }
 
 func loadOrCreateToken(root string) (string, error) {
-	if configured := os.Getenv("CODEX_MUX_CONTROL_TOKEN"); configured != "" {
-		return validateControlToken(configured)
-	}
 	path := filepath.Join(root, "control-token")
-	if data, err := os.ReadFile(path); err == nil {
+	if info, err := os.Lstat(path); err == nil {
+		if !info.Mode().IsRegular() || info.Mode()&os.ModeSymlink != 0 || !ownedByCurrentUser(info) {
+			return "", errors.New("control token must be an owner-controlled regular file")
+		}
+		data, readErr := os.ReadFile(path)
+		if readErr != nil {
+			return "", fmt.Errorf("read control token: %w", readErr)
+		}
 		token, validateErr := validateControlToken(string(data))
 		if validateErr != nil {
 			return "", fmt.Errorf("read control token: %w", validateErr)
@@ -192,7 +191,15 @@ func loadOrCreateToken(root string) (string, error) {
 		return "", fmt.Errorf("generate control token: %w", err)
 	}
 	token := hex.EncodeToString(bytes)
-	if err := os.WriteFile(path, []byte(token), 0o600); err != nil {
+	file, err := os.OpenFile(path, os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0o600)
+	if err != nil {
+		return "", fmt.Errorf("write control token: %w", err)
+	}
+	if _, err := file.WriteString(token); err != nil {
+		_ = file.Close()
+		return "", fmt.Errorf("write control token: %w", err)
+	}
+	if err := file.Close(); err != nil {
 		return "", fmt.Errorf("write control token: %w", err)
 	}
 	return token, nil
@@ -205,4 +212,72 @@ func validateControlToken(value string) (string, error) {
 		return "", errors.New("control token must be exactly 32 random bytes encoded as hexadecimal")
 	}
 	return token, nil
+}
+
+func secureStateRoot(root string) (string, error) {
+	absolute, err := filepath.Abs(root)
+	if err != nil {
+		return "", fmt.Errorf("resolve state root: %w", err)
+	}
+	if err := os.MkdirAll(absolute, 0o700); err != nil {
+		return "", fmt.Errorf("create state root: %w", err)
+	}
+	info, err := os.Lstat(absolute)
+	if err != nil {
+		return "", fmt.Errorf("inspect state root: %w", err)
+	}
+	if info.Mode()&os.ModeSymlink != 0 || !info.IsDir() || !ownedByCurrentUser(info) {
+		return "", errors.New("state root must be an owner-controlled directory, not a symlink")
+	}
+	if err := os.Chmod(absolute, 0o700); err != nil {
+		return "", fmt.Errorf("secure state root: %w", err)
+	}
+	return absolute, nil
+}
+
+func listenControlSocket(root string) (*net.UnixListener, error) {
+	path := filepath.Join(root, "control.sock")
+	if info, err := os.Lstat(path); err == nil {
+		if info.Mode()&os.ModeSymlink != 0 || info.Mode()&os.ModeSocket == 0 || !ownedByCurrentUser(info) {
+			return nil, errors.New("control socket path is not an owner-controlled socket")
+		}
+		connection, dialErr := net.DialTimeout("unix", path, 250*time.Millisecond)
+		if dialErr == nil {
+			_ = connection.Close()
+			return nil, errors.New("control socket is already active")
+		}
+		current, statErr := os.Lstat(path)
+		if statErr != nil {
+			return nil, fmt.Errorf("recheck stale control socket: %w", statErr)
+		}
+		if !os.SameFile(info, current) || current.Mode()&os.ModeSocket == 0 || !ownedByCurrentUser(current) {
+			return nil, errors.New("control socket changed during stale-socket validation")
+		}
+		if err := os.Remove(path); err != nil {
+			return nil, fmt.Errorf("remove stale control socket: %w", err)
+		}
+	} else if !errors.Is(err, os.ErrNotExist) {
+		return nil, fmt.Errorf("inspect control socket: %w", err)
+	}
+
+	listener, err := net.ListenUnix("unix", &net.UnixAddr{Name: path, Net: "unix"})
+	if err != nil {
+		return nil, fmt.Errorf("bind control socket: %w", err)
+	}
+	listener.SetUnlinkOnClose(true)
+	if err := os.Chmod(path, 0o600); err != nil {
+		_ = listener.Close()
+		return nil, fmt.Errorf("secure control socket: %w", err)
+	}
+	info, err := os.Lstat(path)
+	if err != nil || info.Mode()&os.ModeSocket == 0 || !ownedByCurrentUser(info) || info.Mode().Perm() != 0o600 {
+		_ = listener.Close()
+		return nil, errors.New("control socket permissions could not be verified")
+	}
+	return listener, nil
+}
+
+func ownedByCurrentUser(info os.FileInfo) bool {
+	stat, ok := info.Sys().(*syscall.Stat_t)
+	return ok && int(stat.Uid) == os.Geteuid()
 }

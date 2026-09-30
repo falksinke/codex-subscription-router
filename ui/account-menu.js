@@ -1,5 +1,3 @@
-const CODEX_MUX_API = "http://127.0.0.1:__CODEX_MUX_CONTROL_PORT__/v1";
-const CODEX_MUX_TOKEN = "__CODEX_MUX_CONTROL_TOKEN__";
 let codexMuxLoginActive = false;
 
 function CodexMuxProfileMenuOpenChange(setOpen) {
@@ -10,17 +8,22 @@ function CodexMuxProfileMenuOpenChange(setOpen) {
 }
 
 async function codexMuxRequest(path, options = {}) {
-  const response = await fetch(`${CODEX_MUX_API}${path}`, {
-    ...options,
-    headers: {
-      "Content-Type": "application/json",
-      "X-Codex-Mux-Token": CODEX_MUX_TOKEN,
-      ...options.headers,
-    },
+  const bridge = globalThis.codexMuxControl;
+  if (!bridge || typeof bridge.request !== "function") {
+    throw new Error("Subscription control is unavailable.");
+  }
+  return bridge.request(path, {
+    method: options.method || "GET",
+    body: options.body ?? null,
   });
-  const body = await response.json().catch(() => ({}));
-  if (!response.ok) throw new Error(body.error || `Request failed (${response.status})`);
-  return body;
+}
+
+function codexMuxSubscribe(callback) {
+  const bridge = globalThis.codexMuxControl;
+  if (!bridge || typeof bridge.subscribe !== "function") {
+    throw new Error("Subscription control is unavailable.");
+  }
+  return bridge.subscribe(callback);
 }
 
 const CODEX_MUX_ACCOUNT_SCOPED_PLUGIN_METHODS = new Set([
@@ -64,10 +67,10 @@ async function codexMuxConsumeRateLimitReset(accountId, input) {
     `/accounts/${encodeURIComponent(accountId)}/rate-limit-resets/consume`,
     {
       method: "POST",
-      body: JSON.stringify({
+      body: {
         creditId: input.creditId ?? null,
         redeemRequestId: input.redeemRequestId,
-      }),
+      },
     },
   );
 }
@@ -254,12 +257,9 @@ function CodexMuxAccountMenu() {
 
   kXc.useEffect(() => {
     refresh();
-    const events = new EventSource(
-      `${CODEX_MUX_API}/events?token=${encodeURIComponent(CODEX_MUX_TOKEN)}`,
-    );
-    events.onmessage = (event) => {
-      try {
-        const payload = JSON.parse(event.data);
+    let unsubscribe = () => {};
+    try {
+      unsubscribe = codexMuxSubscribe((payload) => {
         if (
           payload.type === "account-updated" &&
           payload.accountId === loginAccountId
@@ -268,8 +268,11 @@ function CodexMuxAccountMenu() {
           setLogin(null);
         }
         if (payload.type === "account-updated") refresh();
-      } catch {}
-    };
+      });
+    } catch (subscriptionError) {
+      setError(subscriptionError.message);
+      setLoading(false);
+    }
     const warmupTimer = setTimeout(refresh, 2_000);
     const loadingDeadline = setTimeout(() => {
       refresh().finally(() => setLoading(false));
@@ -279,7 +282,7 @@ function CodexMuxAccountMenu() {
       clearTimeout(warmupTimer);
       clearTimeout(loadingDeadline);
       clearInterval(timer);
-      events.close();
+      unsubscribe();
     };
   }, [refresh, loginAccountId]);
 
@@ -316,11 +319,11 @@ function CodexMuxAccountMenu() {
     try {
       const created = await codexMuxRequest("/accounts", {
         method: "POST",
-        body: JSON.stringify({ label: `Subscription ${connected.length + 1}` }),
+        body: { label: `Subscription ${connected.length + 1}` },
       });
       const result = await codexMuxRequest(`/accounts/${created.account.id}/login`, {
         method: "POST",
-        body: JSON.stringify({ mode: "chatgptDeviceCode" }),
+        body: { mode: "chatgptDeviceCode" },
       });
       const pendingLogin = result.login
         ? { ...result.login, accountId: created.account.id }
