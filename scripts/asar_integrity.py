@@ -42,31 +42,29 @@ def raw_header_bytes(asar_path: Path) -> bytes:
             raise RuntimeError(
                 f"invalid ASAR size-pickle payload length in {asar_path}"
             )
-        if header_pickle_size < 12 or header_pickle_size % 4 != 0:
+        if header_pickle_size < 8 or header_pickle_size % 4 != 0:
             raise RuntimeError(f"invalid ASAR header-pickle length in {asar_path}")
         if header_pickle_payload_size != header_pickle_size - _PICKLE_HEADER_BYTES:
             raise RuntimeError(
                 f"inconsistent ASAR header-pickle payload length in {asar_path}"
             )
 
-        minimum_payload_size = _STRING_LENGTH_BYTES + header_string_size + 1
-        if minimum_payload_size > header_pickle_payload_size:
-            raise RuntimeError(f"ASAR JSON header exceeds its pickle in {asar_path}")
-        padding_size = header_pickle_payload_size - minimum_payload_size
-        if padding_size > 3:
-            raise RuntimeError(f"invalid ASAR header-pickle padding in {asar_path}")
+        aligned_string_size = (header_string_size + 3) & ~3
+        expected_payload_size = _STRING_LENGTH_BYTES + aligned_string_size
+        if header_pickle_payload_size != expected_payload_size:
+            raise RuntimeError(
+                f"ASAR JSON header length does not match its pickle in {asar_path}"
+            )
+        padding_size = aligned_string_size - header_string_size
 
         header_end = _ASAR_SIZE_PICKLE_BYTES + header_pickle_size
         if header_end > archive_size:
             raise RuntimeError(f"ASAR header exceeds archive bounds: {asar_path}")
 
         raw_header = handle.read(header_string_size)
-        terminator = handle.read(1)
         padding = handle.read(padding_size)
         if len(raw_header) != header_string_size:
             raise RuntimeError(f"ASAR JSON header is truncated: {asar_path}")
-        if terminator != b"\0":
-            raise RuntimeError(f"ASAR JSON header is not NUL-terminated: {asar_path}")
         if padding != b"\0" * padding_size:
             raise RuntimeError(f"ASAR header-pickle padding is invalid: {asar_path}")
 
