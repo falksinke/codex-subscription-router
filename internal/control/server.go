@@ -27,6 +27,7 @@ func New(address, token string, multiplexer *mux.Multiplexer, uiTests bool) *Ser
 	router.HandleFunc("/v1/health", server.health)
 	router.HandleFunc("/v1/accounts", server.accounts)
 	router.HandleFunc("/v1/accounts/", server.accountAction)
+	router.HandleFunc("/v1/routing", server.routing)
 	router.HandleFunc("/v1/thread-account", server.threadAccount)
 	router.HandleFunc("/v1/profile/combined", server.combinedProfile)
 	router.HandleFunc("/v1/events", server.events)
@@ -163,7 +164,10 @@ func (s *Server) accounts(response http.ResponseWriter, request *http.Request) {
 	case http.MethodGet:
 		ctx, cancel := context.WithTimeout(request.Context(), 20*time.Second)
 		defer cancel()
-		writeJSON(response, http.StatusOK, map[string]any{"accounts": s.mux.Accounts(ctx)})
+		writeJSON(response, http.StatusOK, map[string]any{
+			"accounts": s.mux.Accounts(ctx),
+			"routing":  s.mux.RoutingPreference(),
+		})
 	case http.MethodPost:
 		var input struct {
 			Label string `json:"label"`

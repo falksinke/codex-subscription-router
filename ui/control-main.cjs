@@ -88,6 +88,20 @@
       ) {
         throw new PublicControlError("Subscription label is invalid.");
       }
+    } else if (pathname === "/routing" && method === "GET") {
+      requireOnlyQuery(parsed, []);
+      requireNoBody(body);
+    } else if (pathname === "/routing" && method === "PATCH") {
+      requireOnlyQuery(parsed, []);
+      if (
+        !isPlainObject(body) ||
+        !hasOnlyKeys(body, ["accountId"]) ||
+        Object.keys(body).length !== 1 ||
+        (body.accountId !== null &&
+          (typeof body.accountId !== "string" || !ACCOUNT_ID.test(body.accountId)))
+      ) {
+        throw new PublicControlError("Routing preference is invalid.");
+      }
     } else if (pathname === "/profile/combined" && method === "GET") {
       requireOnlyQuery(parsed, ["accountId"]);
       requireNoBody(body);

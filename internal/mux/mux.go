@@ -222,7 +222,7 @@ func (m *Multiplexer) handleClientNotification(message protocol.Message) {
 func (m *Multiplexer) routeNewThread(message protocol.Message) {
 	ctx, cancel := context.WithTimeout(context.Background(), requestTimeout)
 	defer cancel()
-	account, reason, err := m.chooseAccount(ctx)
+	account, reason, err := m.accountForNewThread(ctx)
 	if err != nil {
 		if errors.Is(err, errNoSubscriptionCapacity) {
 			m.write(m.allSubscriptionsDepleted(ctx, message.ID))

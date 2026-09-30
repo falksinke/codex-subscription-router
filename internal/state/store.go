@@ -29,6 +29,11 @@ type persistedState struct {
 	Version     int               `json:"version"`
 	Accounts    []Account         `json:"accounts"`
 	ThreadOwner map[string]string `json:"threadOwner"`
+	Routing     RoutingPreference `json:"routing"`
+}
+
+type RoutingPreference struct {
+	AccountID *string `json:"accountId"`
 }
 
 // Store persists only routing metadata. OAuth credentials and conversation
@@ -40,6 +45,7 @@ type Store struct {
 	primaryCodexHome string
 	accounts         []Account
 	owners           map[string]string
+	routing          RoutingPreference
 }
 
 func Open(root, primaryCodexHome string) (*Store, error) {
@@ -73,6 +79,7 @@ func Open(root, primaryCodexHome string) (*Store, error) {
 		if persisted.ThreadOwner != nil {
 			store.owners = persisted.ThreadOwner
 		}
+		store.routing = cloneRoutingPreference(persisted.Routing)
 	case errors.Is(err, os.ErrNotExist):
 		store.accounts = []Account{{
 			ID:         "primary",
@@ -247,11 +254,48 @@ func (s *Store) ThreadCounts() map[string]int {
 	return counts
 }
 
+func (s *Store) RoutingPreference() RoutingPreference {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	return cloneRoutingPreference(s.routing)
+}
+
+func (s *Store) SetRoutingPreference(accountID *string) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if accountID != nil {
+		var selected *Account
+		for index := range s.accounts {
+			if s.accounts[index].ID == *accountID {
+				selected = &s.accounts[index]
+				break
+			}
+		}
+		if selected == nil {
+			return fmt.Errorf("account %q not found", *accountID)
+		}
+		if !selected.Enabled {
+			return fmt.Errorf("account %q is disabled", *accountID)
+		}
+	}
+	if routingAccountIDsEqual(s.routing.AccountID, accountID) {
+		return nil
+	}
+	previous := cloneRoutingPreference(s.routing)
+	s.routing = cloneRoutingPreference(RoutingPreference{AccountID: accountID})
+	if err := s.saveLocked(); err != nil {
+		s.routing = previous
+		return err
+	}
+	return nil
+}
+
 func (s *Store) saveLocked() error {
 	persisted := persistedState{
 		Version:     stateVersion,
 		Accounts:    s.accounts,
 		ThreadOwner: s.owners,
+		Routing:     cloneRoutingPreference(s.routing),
 	}
 	data, err := json.MarshalIndent(persisted, "", "  ")
 	if err != nil {
@@ -268,6 +312,21 @@ func (s *Store) saveLocked() error {
 		return fmt.Errorf("commit state: %w", err)
 	}
 	return nil
+}
+
+func cloneRoutingPreference(preference RoutingPreference) RoutingPreference {
+	if preference.AccountID == nil {
+		return RoutingPreference{}
+	}
+	accountID := *preference.AccountID
+	return RoutingPreference{AccountID: &accountID}
+}
+
+func routingAccountIDsEqual(left, right *string) bool {
+	if left == nil || right == nil {
+		return left == nil && right == nil
+	}
+	return *left == *right
 }
 
 func randomID() (string, error) {
