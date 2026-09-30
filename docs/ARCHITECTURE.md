@@ -5,8 +5,8 @@ Computer Use helper uses `com.cdxmux.sky.CUAService`. Neither identifier is used
 by the official ChatGPT installation. These identifiers and the `.codex-mux`
 state directory remain stable across the product rename to preserve connected
 accounts and sticky thread ownership. Privacy-grant continuity additionally
-requires the same team-backed signing identity and designated requirement;
-ad-hoc signing may not receive or retain those grants.
+requires the same Apple signing identity and designated requirement. The app
+requires a genuine Apple certificate to preserve its native library validation.
 
 Codex Subscription Router leaves the copied `CodexCLI.app` executable in place.
 At Electron's bundled local app-server launch, it substitutes a small Go
@@ -46,8 +46,11 @@ The patcher extracts `app.asar`, verifies exact upstream anchors, inserts the
 account UI, disables self-update, and repacks the archive with an updated
 integrity hash. The app receives a separate Chromium profile and URL scheme.
 
-The copied Computer Use service, Node runtime, and callers are re-signed with
-one selected local identity; certificate-backed builds use one Apple team.
+The modified Computer Use service, Node runtime, callers, protected Electron
+companions, libaperitif and Codex Framework use one selected Apple identity.
+Companions and libaperitif are signed before their containing framework, and
+the framework before the outer app. Their existing runtime policy is preserved;
+unrelated native code retains its original signature.
 The helper uses a separate bundle identity and socket, with its own macOS
 privacy grants and without the official app-group container.
 

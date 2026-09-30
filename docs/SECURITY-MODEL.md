@@ -61,9 +61,11 @@ connect only accounts whose policies allow that behavior.
 
 The source app and its pristine staged copy pass the OpenAI signature gate
 before modification. The patcher accepts only the recorded version, build, and
-ASAR digest. Native modules, the Computer Use helper, Node runtime, mux, and
-final app are signed with the selected local identity and verified before
-replacement. Certificate-backed builds use one Apple team. Official OpenAI
+ASAR digest. Modified native modules, the Computer Use helper, Node runtime, mux,
+seven protected Electron companion helpers, libaperitif, the modified Codex
+Framework, and final app use the selected genuine Apple signing identity and are
+verified before replacement. Existing unrelated code, including the official
+CLI and Electron Service helper, retains its signature. Official OpenAI
 application-group and keychain entitlements are removed from modified callers.
 The re-signed desktop executable also drops the official app's
 `com.apple.developer.aps-environment` entitlement. This local identity has no
@@ -75,9 +77,14 @@ The native helper's caller allowlist is patched to the selected team and the
 independent desktop bundle ID. This is required for the helper's peer checks;
 it does not bypass macOS Accessibility or Screen Recording consent.
 
-An explicit ad-hoc build is available when no Apple certificate exists. It does
-not provide a team-backed identity; Appshots and Computer Use may be unavailable.
-The helper's caller and macOS consent checks remain in place.
+The app requires an Apple Development or Developer ID Application certificate.
+Its protected Electron helpers and modified framework must have the same
+authenticated Team ID for library validation. Ad-hoc signing is unsupported;
+the patcher does not disable library validation or hardened runtime to make it
+work. Each modified companion keeps its own ordinary entitlements and runtime
+version. Service's existing upstream library-validation exception is left on
+that unchanged helper and is never copied to protected helpers. The Computer
+Use helper's caller and macOS consent checks remain in place.
 
 ## Diagnostics
 

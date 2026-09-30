@@ -89,6 +89,10 @@ main() {
     project_dir="$(resolve_source_dir)"
     cd "${project_dir}"
 
+    if [ "${CODEX_SUBSCRIPTION_ROUTER_ALLOW_ADHOC_SIGNING:-0}" = "1" ]; then
+        fail "this build requires an Apple Development or Developer ID Application certificate; ad-hoc signing cannot satisfy its library validation."
+    fi
+
     log "Installing locked build tools"
     npm ci --ignore-scripts --no-audit --no-fund
 
@@ -96,15 +100,15 @@ main() {
     if [ -d "${DESTINATION_APP}" ] || [ -d "${DESTINATION_HELPER}" ]; then
         patch_arguments+=("--force")
     fi
-    if [ "${CODEX_SUBSCRIPTION_ROUTER_ALLOW_ADHOC_SIGNING:-0}" = "1" ]; then
-        patch_arguments+=("--allow-adhoc-signing")
+    if [ "${CODEX_SUBSCRIPTION_ROUTER_ALLOW_SIGNING_TEAM_CHANGE:-0}" = "1" ]; then
+        patch_arguments+=("--allow-signing-team-change")
     fi
 
     log "Building and signing Codex Subscription Router"
     python3 scripts/patch_app.py "${patch_arguments[@]}"
 
     log "Launching Codex Subscription Router"
-    open "${DESTINATION_APP}"
+    env -u CODEX_CLI_PATH open "${DESTINATION_APP}"
     printf '\nInstalled successfully: %s\n' "${DESTINATION_APP}"
 }
 

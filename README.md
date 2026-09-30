@@ -36,8 +36,7 @@ binaries or a prebuilt application.
 - **Per-account resets.** The native rate-limit sheet shows and consumes resets
   for the selected subscription.
 - **Separate macOS integrations.** The copied Appshots and Computer Use helper
-  has its own identity. Reliable native access requires an Apple team-backed
-  signing certificate; ad-hoc builds may lack these features.
+  has its own identity and macOS privacy permissions.
 
 ## How it works
 
@@ -91,12 +90,16 @@ the evidence available for this port.
 - Xcode Command Line Tools
 - Go 1.26+
 - Node.js 22.12+ and npm
-- An Apple Development or Developer ID Application signing identity for
-  reliable Appshots and Computer Use
+- An Apple Development or Developer ID Application signing identity
 
-A team-backed signing identity is required for reliable Appshots and Computer
-Use permissions. An explicit ad-hoc installation can provide the subscription
-router with that limitation.
+A genuine Apple signing identity is required for the app to launch. Its protected
+Electron helpers must load a modified framework signed by the same Apple team;
+ad-hoc signatures cannot satisfy that library-validation requirement.
+
+For personal use, start with [Xcode's free Personal Team development
+workflow](https://developer.apple.com/help/account/basics/about-your-developer-account).
+A paid Developer ID membership is not the only certificate route. This port has
+not yet been validated with a free Personal Team certificate.
 
 ## Install
 
@@ -114,8 +117,10 @@ CODEX_SUBSCRIPTION_ROUTER_REVISION=REVIEWED_COMMIT bash install.sh
 The installer downloads only the locked npm build dependency, with install
 scripts disabled. It creates and launches a separately signed app. On an existing
 installation it uses the same account state, creates a recoverable backup, and
-requires signing-team continuity. Quit the router and its helper before updating;
-the installer never terminates a running session automatically.
+requires signing-team continuity. Its launch command clears the inherited
+`CODEX_CLI_PATH` for that invocation so installation from inside Codex does not
+select the host app's CLI. Quit the router and its helper before updating; the
+installer never terminates a running session automatically.
 
 > [!TIP]
 > Inspect [`install.sh`](install.sh) and the source before choosing a revision.
@@ -148,17 +153,14 @@ CODEX_MUX_SIGNING_IDENTITY="Developer ID Application: Example Corp (TEAMID1234)"
 
 Reuse the same Apple team for every rebuild. Changing teams changes the app's
 designated requirement and can invalidate existing macOS privacy consent. The
-patcher refuses an unexpected team change unless you deliberately pass
-`--allow-signing-team-change`.
-
-For installation without an Apple signing certificate:
+patcher refuses an unexpected team change. To deliberately change teams, including
+replacing a previously failed ad-hoc copy with a certificate-backed build:
 
 ```sh
 CODEX_SUBSCRIPTION_ROUTER_REVISION=REVIEWED_COMMIT \
-  CODEX_SUBSCRIPTION_ROUTER_ALLOW_ADHOC_SIGNING=1 bash install.sh
+  CODEX_SUBSCRIPTION_ROUTER_ALLOW_SIGNING_TEAM_CHANGE=1 bash install.sh
 ```
 
-Appshots and Computer Use may not function with an ad-hoc signature.
 Apple push notifications are unavailable in this local copy: the patcher
 removes the official app's provisioning-dependent APNs entitlement when
 re-signing the desktop executable.
