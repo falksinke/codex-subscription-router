@@ -1,20 +1,55 @@
 # Compatibility
 
-The patcher is intentionally tied to known ChatGPT desktop bundle structures.
-It verifies every modified renderer, main-process, and native binary anchor and
-stops instead of applying a partial patch.
+The patcher supports one exact official macOS build. It checks the OpenAI
+signature before copying the app, then requires the tested version, bundle
+build, `app.asar` digest, renderer anchors, main-process anchors, and native
+binary reference counts. A mismatch stops the patch before installation.
 
-## Release 0.1.0
+## Supported source
 
-| Component | Tested value |
+| Component | Required value |
 | --- | --- |
-| Official ChatGPT version | `26.803.61601` |
-| Official bundle build | `6396` |
-| `app.asar` SHA-256 | `d5a44ed9e2f1db5f81dbbe85408aed256f3203c5b16f00817bb9d7cd941343cf` |
+| Official ChatGPT version | `26.928.20755` |
+| Official bundle build | `12246` |
+| `app.asar` SHA-256 | `2301fba40bd8fa237ccdb1369363e1deefaf27953da2d767d428225d5e9eedee` |
+| Bundle identifier | `com.openai.codex` |
+| Apple signing team | `2DC432GLL2` |
 | Architecture | Apple silicon (`arm64`) |
+| Bundled Codex CLI | `0.159.0` |
 
-A different official version may work when all anchors remain identical, but
-it is unverified. The patcher rejects a version, build, or ASAR hash mismatch by
-default; `--allow-untested-source` is an explicit diagnostic override. Never
-weaken an anchor-count or binary-constant check merely to make a new build
-complete. Review the upstream change and update the patch deliberately.
+There is no untested-source override. Supporting a later ChatGPT build requires
+a deliberate port with new exact filenames, semantic anchors, native counts,
+and an approved ASAR digest.
+
+## Current-build integration
+
+The app keeps the official bundled CLI at
+`Resources/codex-cli/CodexCLI.app/Contents/MacOS/codex`. The Electron
+app-server launch is redirected through `Resources/codex-mux` only when the
+official local bundled resolver selected that exact CLI. The real CLI path is
+passed to the router in `CODEX_MUX_REAL_CODEX`; `CODEX_CLI_PATH` continues to
+name the official binary.
+
+The subscription controls use Electron IPC in the renderer and a private Unix
+socket between Electron's main process and `codex-mux`. The renderer does not
+receive the socket path or bearer token, and the patch does not add a TCP
+control endpoint or relax the renderer's Content Security Policy.
+
+The current port modifies exact tested bundles for the desktop bootstrap,
+main process, main-window preload, application network startup, account menu,
+profile, usage modal, plugin settings, and local-thread summary. Every anchor
+must occur exactly once before it is changed.
+
+## Signing limits
+
+A team-backed Apple development or distribution identity gives the copied app
+and its modified Computer Use helper one consistent signing team. With the
+explicit `--allow-adhoc-signing` option, the core account router can be built,
+but Appshots and Computer Use may be unavailable because an ad-hoc signature
+cannot satisfy the original team-based trust and privacy grants. The patcher
+does not weaken those peer checks or copy OpenAI provisioning profiles.
+
+Runtime validation of build `12246` is separate from this compatibility claim.
+The current port was produced by source inspection and exact-anchor checks; a
+successful install and focused runtime exercise are still required before the
+build can be described as validated.
