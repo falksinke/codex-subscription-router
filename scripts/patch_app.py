@@ -879,8 +879,8 @@ def patch_account_component(component: str) -> str:
         expected=2,
     )
     for original, replacement, expected in (
-        ("e7", "o$", 69),
-        ("kXc", "$oo", 33),
+        ("e7", "o$", 71),
+        ("kXc", "$oo", 36),
         ("QLs", "QAi", 1),
         ("BW", "ff", 1),
         ("lt", "to", 1),
@@ -1046,6 +1046,13 @@ def patch_renderer(extracted: Path) -> None:
         component_anchor,
         component + "\n" + component_anchor,
         "native profile menu component",
+    )
+    bundle = replace_anchor(
+        bundle,
+        "let Ge=We,Ke;t[87]===ye",
+        "let Ge=globalThis.CodexMuxRoutingAvatar?.({fallback:We,compact:i})"
+        "??We,Ke;t[87]===ye",
+        "native sidebar profile avatar",
     )
 
     for anchor, replacement, description in (

@@ -808,6 +808,82 @@ function CodexMuxAccountAvatar({ imageUrl, label, className }) {
   });
 }
 
+function CodexMuxUseMountEffect(effect) {
+  kXc.useEffect(effect, []);
+}
+
+function CodexMuxRoutingAvatar({ fallback, compact }) {
+  const cachedAccounts = (globalThis.__codexMuxConnectedAccounts || []).filter(
+    (account) => account.connected && account.enabled,
+  );
+  const [snapshot, setSnapshot] = kXc.useState({
+    accounts: cachedAccounts,
+    routingAccountId: null,
+    loaded: false,
+  });
+  const refreshGenerationRef = kXc.useRef(0);
+
+  CodexMuxUseMountEffect(() => {
+    let active = true;
+
+    const refresh = async () => {
+      const generation = ++refreshGenerationRef.current;
+      try {
+        const result = await codexMuxRequest("/accounts");
+        if (!active || generation !== refreshGenerationRef.current) return;
+        const connectedAccounts = (result.accounts || []).filter(
+          (account) => account.connected && account.enabled,
+        );
+        globalThis.__codexMuxConnectedAccounts = connectedAccounts;
+        setSnapshot({
+          accounts: connectedAccounts,
+          routingAccountId: result.routing?.accountId ?? null,
+          loaded: true,
+        });
+      } catch {
+        if (!active || generation !== refreshGenerationRef.current) return;
+        setSnapshot((current) => ({ ...current, loaded: false }));
+      }
+    };
+
+    refresh();
+    let unsubscribe = () => {};
+    try {
+      unsubscribe = codexMuxSubscribe((payload) => {
+        if (
+          payload.type === "account-updated" ||
+          payload.type === "routing-updated"
+        ) {
+          refresh();
+        }
+      });
+    } catch {}
+    const warmupTimer = setTimeout(refresh, 2_000);
+    const timer = setInterval(refresh, 30_000);
+    return () => {
+      active = false;
+      refreshGenerationRef.current += 1;
+      clearTimeout(warmupTimer);
+      clearInterval(timer);
+      unsubscribe();
+    };
+  });
+
+  if (!snapshot.loaded) return fallback;
+  const selectedAccountId = snapshot.routingAccountId ?? "primary";
+  const selectedAccount = snapshot.accounts.find(
+    (account) => account.id === selectedAccountId,
+  );
+  if (!selectedAccount) return fallback;
+
+  return (0, e7.jsx)(CodexMuxAccountAvatar, {
+    key: `${selectedAccount.id}:${selectedAccount.profileImageUrl || ""}`,
+    imageUrl: selectedAccount.profileImageUrl,
+    label: selectedAccount.label,
+    className: compact ? "size-6" : "icon-sm",
+  });
+}
+
 function CodexMuxOverlappingAvatars({ accounts, size = "size-20" }) {
   const overlapClass = size === "size-20" ? "-ml-10" : "-ml-2";
   return (0, e7.jsx)("div", {
@@ -1022,6 +1098,8 @@ function CodexMuxPluginScope() {
 // error handling, and the initials fallback.
 globalThis.CodexMuxAccountAvatar = CodexMuxAccountAvatar;
 globalThis.codexMuxProfileData = codexMuxProfileData;
+globalThis.CodexMuxRoutingAvatar = (props) =>
+  (0, e7.jsx)(CodexMuxRoutingAvatar, props || {});
 globalThis.CodexMuxProfileAvatarStack = (props) =>
   (0, e7.jsx)(CodexMuxProfileAvatarStack, props || {});
 globalThis.CodexMuxPluginScope = () =>
