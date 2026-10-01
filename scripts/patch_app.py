@@ -1267,6 +1267,8 @@ def patch_desktop_profile(
     extracted: Path, installed_computer_use_app: Path
 ) -> None:
     """Give the copied Electron app its own user-data and single-instance scope."""
+    computer_use_pipe = json.dumps(str(DEFAULT_STATE_ROOT / "computer-use.sock"))
+    computer_use_app = json.dumps(str(installed_computer_use_app))
     bootstrap_path = current_bundle_file(
         extracted, BUILD_FILES["bootstrap"], "desktop bootstrap bundle"
     )
@@ -1280,8 +1282,6 @@ def patch_desktop_profile(
 
     def replacement(match: re.Match[str]) -> str:
         electron = match.group("electron")
-        computer_use_pipe = json.dumps(str(DEFAULT_STATE_ROOT / "computer-use.sock"))
-        computer_use_app = json.dumps(str(installed_computer_use_app))
         return (
             f"process.env.SKY_CUA_SERVICE_NATIVE_PIPE_PATH={computer_use_pipe};"
             f"process.env.SKY_CUA_SERVICE_PATH={computer_use_app};"
@@ -1332,6 +1332,54 @@ def patch_desktop_profile(
         raise RuntimeError(
             "could not pin the managed Computer Use service to its installed app"
         )
+
+    router_computer_use_env_guard = (
+        f"P.default.platform===`darwin`&&P.default.env[pa]==={computer_use_pipe}&&"
+        f"P.default.env[fa]==={computer_use_app}"
+    )
+    router_computer_use_env = (
+        f"{{[pa]:{computer_use_pipe},[fa]:{computer_use_app}}}"
+    )
+    node_repl_env_anchor = (
+        "...s?ha({nativePipeDirectory:l,nativePipeEnabled:m.platform===`win32`,"
+        "serviceAppPath:m.platform===`darwin`?u.serviceAppPath:null,"
+        "serviceNativePipePath:m.platform===`darwin`&&p?P.default.env[pa]:null})"
+        ":{},...s&&m.platform===`darwin`&&f!=null?{[$s]:f}:{}"
+    )
+    node_repl_env_replacement = (
+        "...s?ha({nativePipeDirectory:l,nativePipeEnabled:m.platform===`win32`,"
+        "serviceAppPath:m.platform===`darwin`?u.serviceAppPath:null,"
+        "serviceNativePipePath:m.platform===`darwin`&&p?P.default.env[pa]:null})"
+        ":{},...s&&m.platform===`darwin`&&"
+        + router_computer_use_env_guard
+        + "?"
+        + router_computer_use_env
+        + ":{},...s&&m.platform===`darwin`&&f!=null?{[$s]:f}:{}"
+    )
+    main = replace_anchor(
+        main,
+        node_repl_env_anchor,
+        node_repl_env_replacement,
+        "Router Computer Use node_repl environment",
+    )
+    persisted_cua_env_anchor = (
+        "c.env={...e.nodeRepl?.env,CUA_REPL_NODE_REPL_PATH:"
+        "e.nodeRepl?.command,CUA_REPL_ENABLED_SURFACES:e.surfaces.join(`,`)"
+    )
+    persisted_cua_env_replacement = (
+        "c.env={...e.nodeRepl?.env,...(e.surfaces.includes(`computer`)&&"
+        + router_computer_use_env_guard
+        + "?"
+        + router_computer_use_env
+        + ":{}),CUA_REPL_NODE_REPL_PATH:e.nodeRepl?.command,"
+        "CUA_REPL_ENABLED_SURFACES:e.surfaces.join(`,`)"
+    )
+    main = replace_anchor(
+        main,
+        persisted_cua_env_anchor,
+        persisted_cua_env_replacement,
+        "persisted Router Computer Use cua_repl environment",
+    )
 
     main = replace_anchor(
         main,
