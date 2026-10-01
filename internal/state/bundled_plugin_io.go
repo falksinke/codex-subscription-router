@@ -146,7 +146,7 @@ func rewriteBundledMCPHome(path, primaryHome, isolatedHome string) error {
 					paths[index] = isolatedHome
 				}
 			}
-			environment["NODE_REPL_TRUSTED_CODE_PATHS"] = filepath.JoinList(paths)
+			environment["NODE_REPL_TRUSTED_CODE_PATHS"] = strings.Join(paths, string(os.PathListSeparator))
 		}
 	}
 	return writeJSONFile(path, document)

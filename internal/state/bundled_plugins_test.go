@@ -53,7 +53,7 @@ func TestBundledPluginsMaterializeScopedAccountCopies(t *testing.T) {
 	if environment["CODEX_HOME"] != isolated {
 		t.Fatalf("CODEX_HOME was not isolated: %#v", environment)
 	}
-	wantTrusted := filepath.JoinList([]string{isolated, approved, primary + "-suffix"})
+	wantTrusted := strings.Join([]string{isolated, approved, primary + "-suffix"}, string(os.PathListSeparator))
 	if environment["NODE_REPL_TRUSTED_CODE_PATHS"] != wantTrusted || environment["KEEP"] != "unchanged" {
 		t.Fatalf("trusted paths or unrelated MCP env changed: %#v", environment)
 	}
@@ -184,7 +184,7 @@ func createBundledVersion(t *testing.T, primary, plugin, version string, withMCP
 	approved := filepath.Join(filepath.Dir(primary), "approved")
 	document := map[string]any{"mcpServers": map[string]any{"cua_repl": map[string]any{"env": map[string]any{
 		"CODEX_HOME":                   primary,
-		"NODE_REPL_TRUSTED_CODE_PATHS": filepath.JoinList([]string{primary, approved, primary + "-suffix"}),
+		"NODE_REPL_TRUSTED_CODE_PATHS": strings.Join([]string{primary, approved, primary + "-suffix"}, string(os.PathListSeparator)),
 		"KEEP":                         "unchanged",
 	}}}}
 	contents, err := json.Marshal(document)
