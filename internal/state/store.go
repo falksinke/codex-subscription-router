@@ -39,13 +39,15 @@ type RoutingPreference struct {
 // Store persists only routing metadata. OAuth credentials and conversation
 // databases remain inside each account's isolated Codex home.
 type Store struct {
-	mu               sync.RWMutex
-	root             string
-	path             string
-	primaryCodexHome string
-	accounts         []Account
-	owners           map[string]string
-	routing          RoutingPreference
+	mu                        sync.RWMutex
+	bundledPluginsMu          sync.Mutex
+	root                      string
+	path                      string
+	primaryCodexHome          string
+	bundledPluginsFingerprint string
+	accounts                  []Account
+	owners                    map[string]string
+	routing                   RoutingPreference
 }
 
 func Open(root, primaryCodexHome string) (*Store, error) {
@@ -95,6 +97,7 @@ func Open(root, primaryCodexHome string) (*Store, error) {
 	default:
 		return nil, fmt.Errorf("read state: %w", err)
 	}
+	var bundledPlugins bundledPluginInventory
 	for _, account := range store.accounts {
 		if samePath(account.CodexHome, primaryCodexHome) {
 			continue
@@ -102,7 +105,17 @@ func Open(root, primaryCodexHome string) (*Store, error) {
 		if err := syncIsolatedConfig(primaryCodexHome, account.CodexHome); err != nil {
 			return nil, fmt.Errorf("sync account %q config: %w", account.ID, err)
 		}
+		if bundledPlugins.fingerprint == "" {
+			bundledPlugins, err = inspectBundledPlugins(primaryCodexHome)
+			if err != nil {
+				return nil, fmt.Errorf("inspect bundled plugins: %w", err)
+			}
+		}
+		if err := bundledPlugins.syncTo(account.CodexHome); err != nil {
+			return nil, fmt.Errorf("sync account %q bundled plugins: %w", account.ID, err)
+		}
 	}
+	store.bundledPluginsFingerprint = bundledPlugins.fingerprint
 	return store, nil
 }
 
@@ -110,10 +123,9 @@ func (s *Store) Root() string {
 	return s.root
 }
 
-// SyncManagedConfig propagates desktop-managed configuration (including
-// plugins, marketplaces, skills, and MCP server definitions) to every
-// isolated subscription. Credential stores and project trust remain local to
-// each account; syncIsolatedConfig deliberately excludes both.
+// SyncManagedConfig propagates desktop-managed configuration and the scoped
+// bundled plugin inventory to every isolated subscription. Credential stores
+// and project trust remain local to each account.
 func (s *Store) SyncManagedConfig() error {
 	s.mu.RLock()
 	accounts := slices.Clone(s.accounts)
@@ -128,6 +140,24 @@ func (s *Store) SyncManagedConfig() error {
 			return fmt.Errorf("sync account %q config: %w", account.ID, err)
 		}
 	}
+	s.bundledPluginsMu.Lock()
+	defer s.bundledPluginsMu.Unlock()
+	bundledPlugins, err := inspectBundledPlugins(primaryCodexHome)
+	if err != nil {
+		return fmt.Errorf("inspect bundled plugins: %w", err)
+	}
+	if bundledPlugins.fingerprint == s.bundledPluginsFingerprint {
+		return nil
+	}
+	for _, account := range accounts {
+		if samePath(account.CodexHome, primaryCodexHome) {
+			continue
+		}
+		if err := bundledPlugins.syncTo(account.CodexHome); err != nil {
+			return fmt.Errorf("sync account %q bundled plugins: %w", account.ID, err)
+		}
+	}
+	s.bundledPluginsFingerprint = bundledPlugins.fingerprint
 	return nil
 }
 
@@ -184,7 +214,13 @@ func (s *Store) AddAccount(label string) (Account, error) {
 	if err := syncIsolatedConfig(s.primaryCodexHome, codexHome); err != nil {
 		return Account{}, fmt.Errorf("write account config: %w", err)
 	}
-
+	bundledPlugins, err := inspectBundledPlugins(s.primaryCodexHome)
+	if err != nil {
+		return Account{}, fmt.Errorf("inspect bundled plugins: %w", err)
+	}
+	if err := bundledPlugins.syncTo(codexHome); err != nil {
+		return Account{}, fmt.Errorf("write account bundled plugins: %w", err)
+	}
 	account := Account{
 		ID:        id,
 		Label:     label,
