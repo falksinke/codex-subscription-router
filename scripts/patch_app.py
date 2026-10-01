@@ -639,15 +639,52 @@ def sign_runtime_bundle(
 
 def capture_computer_use_entitlements(
     app: Path,
+    team_identifier: str,
 ) -> dict[Path, dict[str, object] | None]:
     service = computer_use_package(app) / "Codex Computer Use.app"
     if not service.is_dir():
         raise RuntimeError("bundled Codex Computer Use service was not found")
-    return {
-        executable.relative_to(service): sanitized_runtime_entitlements(executable)
-        for executable in service.rglob("*")
-        if is_mach_o(executable)
-    }
+    service_executable = Path("Contents/MacOS/SkyComputerUseService")
+    preserved_entitlements: dict[Path, dict[str, object] | None] = {}
+    for executable in service.rglob("*"):
+        if not is_mach_o(executable):
+            continue
+        relative = executable.relative_to(service)
+        entitlements = sanitized_runtime_entitlements(executable)
+        if relative == service_executable:
+            entitlements = dict(entitlements or {})
+            entitlements["com.apple.security.application-groups"] = [
+                f"{team_identifier}.{COMPUTER_USE_BUNDLE_IDENTIFIER}"
+            ]
+        preserved_entitlements[relative] = entitlements
+    return preserved_entitlements
+
+
+def verify_computer_use_application_group(
+    service: Path,
+    team_identifier: str,
+) -> None:
+    executable = service / "Contents" / "MacOS" / "SkyComputerUseService"
+    result = subprocess.run(
+        ["codesign", "--display", "--entitlements", ":-", str(executable)],
+        check=True,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+    )
+    try:
+        entitlements = plistlib.loads(result.stdout)
+    except plistlib.InvalidFileException as error:
+        raise RuntimeError(
+            f"could not read final signing entitlements from {executable}"
+        ) from error
+    if not isinstance(entitlements, dict):
+        raise RuntimeError(f"invalid final signing entitlements on {executable}")
+    expected_group = f"{team_identifier}.{COMPUTER_USE_BUNDLE_IDENTIFIER}"
+    if entitlements.get("com.apple.security.application-groups") != [expected_group]:
+        raise RuntimeError(
+            "final Computer Use service signature does not contain exactly the "
+            f"expected application group: {expected_group}"
+        )
 
 
 def sign_computer_use_code(
@@ -714,7 +751,9 @@ def sign_independent_app(
     app: Path, identity: str, team_identifier: str
 ) -> None:
     """Apply one stable identity throughout the modified Electron bundle."""
-    computer_use_entitlements = capture_computer_use_entitlements(app)
+    computer_use_entitlements = capture_computer_use_entitlements(
+        app, team_identifier
+    )
     patch_computer_use_identity(app, team_identifier)
     sign_computer_use_code(app, identity, computer_use_entitlements)
     run(
@@ -1589,6 +1628,10 @@ def patch_app(
         )
         bundled_computer_use_app = (
             computer_use_package(staged_app) / "Codex Computer Use.app"
+        )
+        verify_computer_use_application_group(
+            bundled_computer_use_app,
+            team_identifier,
         )
         run(
             [
