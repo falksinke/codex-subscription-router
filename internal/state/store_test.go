@@ -156,6 +156,74 @@ func TestSyncManagedConfigPropagatesPluginsWithoutRestart(t *testing.T) {
 	}
 }
 
+func TestAccountConfigScopesBundledMarketplaceSource(t *testing.T) {
+	root := t.TempDir()
+	primaryHome := filepath.Join(root, "primary")
+	if err := os.MkdirAll(primaryHome, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	primarySource := filepath.Join(primaryHome, ".tmp", "bundled-marketplaces", bundledMarketplaceName)
+	primaryConfig := `[marketplaces.openai-bundled]
+source_type = "local"
+source = "` + primarySource + `"
+
+[marketplaces.custom]
+source_type = "local"
+source = "/custom/marketplace"
+
+[plugins."unified-computer-use@openai-bundled"]
+enabled = true
+`
+	configPath := filepath.Join(primaryHome, "config.toml")
+	if err := os.WriteFile(configPath, []byte(primaryConfig), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	store, err := Open(filepath.Join(root, "mux"), primaryHome)
+	if err != nil {
+		t.Fatal(err)
+	}
+	account, err := store.AddAccount("Work")
+	if err != nil {
+		t.Fatal(err)
+	}
+	isolatedConfigPath := filepath.Join(account.CodexHome, "config.toml")
+	isolatedConfig, err := os.ReadFile(isolatedConfigPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	isolatedSource := filepath.Join(account.CodexHome, ".tmp", "bundled-marketplaces", bundledMarketplaceName)
+	text := string(isolatedConfig)
+	for _, expected := range []string{
+		`source = "` + isolatedSource + `"`,
+		`source = "/custom/marketplace"`,
+		`[plugins."unified-computer-use@openai-bundled"]`,
+		`enabled = true`,
+	} {
+		if !strings.Contains(text, expected) {
+			t.Fatalf("isolated config is missing %q:\n%s", expected, text)
+		}
+	}
+	if strings.Contains(text, `source = "`+primarySource+`"`) {
+		t.Fatalf("primary bundled marketplace source leaked into isolated config:\n%s", text)
+	}
+
+	foreignBundledSource := "/custom/openai-bundled"
+	updated := strings.Replace(primaryConfig, primarySource, foreignBundledSource, 1)
+	if err := os.WriteFile(configPath, []byte(updated), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if err := store.SyncManagedConfig(); err != nil {
+		t.Fatal(err)
+	}
+	isolatedConfig, err = os.ReadFile(isolatedConfigPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(string(isolatedConfig), `source = "`+foreignBundledSource+`"`) {
+		t.Fatalf("foreign reserved marketplace source was normalized:\n%s", isolatedConfig)
+	}
+}
+
 func TestUpdateAccountPreservesController(t *testing.T) {
 	root := t.TempDir()
 	store, err := Open(root, filepath.Join(root, "primary"))

@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 )
 
@@ -38,6 +39,7 @@ func syncIsolatedConfig(primaryCodexHome, isolatedCodexHome string) error {
 		return !isProjectSection(section)
 	})
 	managed = removeTopLevelCredentialSettings(managed)
+	managed = rewriteBundledMarketplaceSource(managed, primaryCodexHome, isolatedCodexHome)
 	projects := filterConfig(isolatedConfig, isProjectSection)
 
 	parts := []string{isolatedCredentialConfig}
@@ -101,6 +103,53 @@ func removeTopLevelCredentialSettings(contents string) string {
 		builder.WriteByte('\n')
 	}
 	return builder.String()
+}
+
+func rewriteBundledMarketplaceSource(contents, primaryCodexHome, isolatedCodexHome string) string {
+	lines := strings.Split(contents, "\n")
+	sectionStart := -1
+	for index := 0; index <= len(lines); index++ {
+		if index < len(lines) {
+			trimmed := strings.TrimSpace(lines[index])
+			if !strings.HasPrefix(trimmed, "[") || !strings.HasSuffix(trimmed, "]") {
+				continue
+			}
+			if sectionStart >= 0 {
+				rewriteBundledMarketplaceSection(lines[sectionStart:index], primaryCodexHome, isolatedCodexHome)
+			}
+			section := strings.TrimSpace(strings.TrimSuffix(strings.TrimPrefix(trimmed, "["), "]"))
+			if section == "marketplaces.openai-bundled" {
+				sectionStart = index + 1
+			} else {
+				sectionStart = -1
+			}
+			continue
+		}
+		if sectionStart >= 0 {
+			rewriteBundledMarketplaceSection(lines[sectionStart:index], primaryCodexHome, isolatedCodexHome)
+		}
+	}
+	return strings.Join(lines, "\n")
+}
+
+func rewriteBundledMarketplaceSection(lines []string, primaryCodexHome, isolatedCodexHome string) {
+	wantSource := "source = " + strconv.Quote(filepath.Join(primaryCodexHome, ".tmp", "bundled-marketplaces", bundledMarketplaceName))
+	sourceIndex := -1
+	local := false
+	for index, line := range lines {
+		switch strings.TrimSpace(line) {
+		case `source_type = "local"`:
+			local = true
+		case wantSource:
+			sourceIndex = index
+		}
+	}
+	if !local || sourceIndex < 0 {
+		return
+	}
+	indent := lines[sourceIndex][:len(lines[sourceIndex])-len(strings.TrimLeft(lines[sourceIndex], " \t"))]
+	isolatedSource := filepath.Join(isolatedCodexHome, ".tmp", "bundled-marketplaces", bundledMarketplaceName)
+	lines[sourceIndex] = indent + "source = " + strconv.Quote(isolatedSource)
 }
 
 func isProjectSection(section string) bool {
