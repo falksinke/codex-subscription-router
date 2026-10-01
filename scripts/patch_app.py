@@ -1326,6 +1326,57 @@ def patch_desktop_profile(
             "could not pin the managed Computer Use service to its installed app"
         )
 
+    main = replace_anchor(
+        main,
+        "function xp(){",
+        "function xp(codexMuxPeerServerLabel){",
+        "native pipe peer authorizer diagnostic label",
+    )
+    peer_authorizer_tail = (
+        "return bp().info(`browser-use native pipe peer authorization enabled`,"
+        "{safe:{mode:n?`dev`:`packaged`},sensitive:{}}),e=>{let t=tae(e);"
+        "return t==null?{authorized:!1,reason:`missing-socket-file-descriptor`}:"
+        "i.authorizeSocketPeer(t,n)}}function tae(e){"
+    )
+    peer_authorizer_diagnostic_tail = (
+        "return bp().info(`browser-use native pipe peer authorization enabled`,"
+        "{safe:{mode:n?`dev`:`packaged`},sensitive:{}}),t=>{let r=tae(t),"
+        "a=r==null?{authorized:!1,reason:`missing-socket-file-descriptor`}:"
+        "i.authorizeSocketPeer(r,n);if(codexMuxPeerServerLabel!=null)try{"
+        "let t=e=>typeof e==`string`?"
+        "e.replace(/[\\x00-\\x1F\\x7F-\\x9F\\u2028\\u2029]/g,``).slice(0,160):"
+        "void 0,n={server:t(codexMuxPeerServerLabel)},"
+        "r=a!=null&&typeof a==`object`?a:null,i=r?.authorized;"
+        "typeof i==`boolean`&&(n.authorized=i);for(let e of "
+        "[`reason`,`teamId`,`signingIdentifier`]){let i=t(r?.[e]);"
+        "i!==void 0&&(n[e]=i)}bp().info(`codex-mux-peer-diagnostic`,"
+        "{safe:n,sensitive:{}})}catch{}return a}}function tae(e){"
+    )
+    main = replace_anchor(
+        main,
+        peer_authorizer_tail,
+        peer_authorizer_diagnostic_tail,
+        "native pipe peer authorizer bounded diagnostic",
+    )
+    main = replace_anchor(
+        main,
+        "async function oae({callTool:e,listTools:t,readBrowserAccess:n,"
+        "prepareTaskWorkspace:r,pipePath:i,socketPeerAuthorizer:a=xp()}){",
+        "async function oae({callTool:e,listTools:t,readBrowserAccess:n,"
+        "prepareTaskWorkspace:r,pipePath:i,socketPeerAuthorizer:"
+        "a=xp(`dynamic-app-tools-native-pipe`)}){",
+        "dynamic app tools peer diagnostic label",
+    )
+    main = replace_anchor(
+        main,
+        "async function xOe({apiImpl:e,nativePipeDirectory:t,"
+        "maxOutgoingFrameBytes:n=yOe,pipePath:r,socketPeerAuthorizer:i=xp()}){",
+        "async function xOe({apiImpl:e,nativePipeDirectory:t,"
+        "maxOutgoingFrameBytes:n=yOe,pipePath:r,socketPeerAuthorizer:"
+        "i=xp(`browser-use-native-pipe-server`)}){",
+        "browser-use server peer diagnostic label",
+    )
+
     computer_use_instruction = (
         "Control desktop apps on macOS through Computer Use."
     )
